@@ -1,0 +1,13 @@
+--- a/net/minecraft/util/math/shapes/VoxelShapeCube.java
++++ b/net/minecraft/util/math/shapes/VoxelShapeCube.java
+@@ -14,4 +14,10 @@
+     {
+         return new DoubleRangeList(this.part.getSize(axis));
+     }
++
++    @Override
++    public int getClosestIndex(final EnumFacing.Axis axis, final double position)
++    {
++        return net.minecraft.util.math.MathHelper.clamp(net.minecraft.util.math.MathHelper.floor(position * this.part.getSize(axis)), -1, this.part.getSize(axis));
++    }
+ }

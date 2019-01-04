@@ -1,0 +1,36 @@
+--- a/net/minecraft/util/math/shapes/VoxelShape.java
++++ b/net/minecraft/util/math/shapes/VoxelShape.java
+@@ -19,7 +19,7 @@
+ {
+     protected final VoxelShapePart part;
+ 
+-    VoxelShape(VoxelShapePart part)
++    public VoxelShape(VoxelShapePart part)
+     {
+         this.part = part;
+     }
+@@ -283,4 +283,24 @@
+     {
+         return this.isEmpty() ? "EMPTY" : "VoxelShape[" + this.getBoundingBox() + "]";
+     }
++
++    public boolean compare(final VoxelShape shape, final IBooleanFunction desc)
++    {
++        return VoxelShapes.compare(this, shape, desc);
++    }
++
++    public boolean compare(final AxisAlignedBB shape, final IBooleanFunction desc)
++    {
++        return this.compare((VoxelShape) shape, desc);
++    }
++
++    public boolean intersects(final VoxelShape shape)
++    {
++        return VoxelShapes.compare(this, shape, ocd.mcoptimizations.util.BooleanFunction.AND);
++    }
++
++    public boolean intersects(final AxisAlignedBB shape)
++    {
++        return this.intersects((VoxelShape) shape);
++    }
+ }

@@ -1,0 +1,551 @@
+--- a/net/minecraft/world/IWorldReaderBase.java
++++ b/net/minecraft/world/IWorldReaderBase.java
+@@ -129,6 +129,140 @@
+         return this.checkNoEntityCollision(entityIn, VoxelShapes.create(aabb));
+     }
+ 
++    default java.util.Collection<VoxelShape> func_212391_aColl(final VoxelShape p_212391_1_, final VoxelShape p_212391_2_, final boolean p_212391_3_)
++    {
++        final int i = MathHelper.floor(p_212391_1_.getStart(EnumFacing.Axis.X));
++        final int j = MathHelper.ceil(p_212391_1_.getEnd(EnumFacing.Axis.X));
++        final int k = MathHelper.floor(p_212391_1_.getStart(EnumFacing.Axis.Y)) - 1;
++        final int l = MathHelper.ceil(p_212391_1_.getEnd(EnumFacing.Axis.Y));
++        final int i1 = MathHelper.floor(p_212391_1_.getStart(EnumFacing.Axis.Z));
++        final int j1 = MathHelper.ceil(p_212391_1_.getEnd(EnumFacing.Axis.Z));
++        final WorldBorder worldborder = this.getWorldBorder();
++        final boolean flag = worldborder.minX() < (double) i && (double) j < worldborder.maxX() && worldborder.minZ() < (double) i1 && (double) j1 < worldborder.maxZ();
++        final VoxelShapePart voxelshapepart = new VoxelShapePartBitSet(j - i, l - k, j1 - i1);
++
++        final java.util.Collection<VoxelShape> coll = new java.util.ArrayList<>();
++
++        final BlockPos.PooledMutableBlockPos p_212390_12_ = BlockPos.PooledMutableBlockPos.retain();
++
++        for (int k1 = i; k1 <= j - 1; ++k1)
++        {
++            for (int l1 = k; l1 <= l - 1; ++l1)
++            {
++                for (int i2 = i1; i2 <= j1 - 1; ++i2)
++                {
++                    p_212390_12_.setPos(k1,l1,i2);
++
++                    if (this.isBlockLoaded(p_212390_12_))
++                    {
++                        final VoxelShape voxelshape;
++
++                        if (p_212391_3_ && !flag && !worldborder.contains(p_212390_12_))
++                        {
++                            voxelshape = VoxelShapes.fullCube();
++                        }
++                        else
++                        {
++                            voxelshape = this.getBlockState(p_212390_12_).getCollisionShape(this, p_212390_12_);
++                        }
++
++                        if (voxelshape == VoxelShapes.fullCube())
++                        {
++                            voxelshapepart.setFilled(k1 - i, l1 - k, i2 - i1, true, true);
++                        }
++                        else
++                        {
++                            final VoxelShape shape = voxelshape.withOffset((double) k1, (double) l1, (double) i2);
++                            if (!shape.isEmpty())
++                                coll.add(shape);
++                        }
++                    }
++                }
++            }
++        }
++
++        p_212390_12_.close();
++
++        final VoxelShape shape = new VoxelShapeInt(voxelshapepart, i, k, i1);
++        if (!shape.isEmpty())
++            coll.add(shape);
++
++        return coll;
++    }
++
++    default java.util.Collection<VoxelShape> func_212391_aCollFiltered(final VoxelShape p_212391_1_, final VoxelShape p_212391_2_, final boolean p_212391_3_)
++    {
++        final int i = MathHelper.floor(p_212391_1_.getStart(EnumFacing.Axis.X)) - 1;
++        final int j = MathHelper.ceil(p_212391_1_.getEnd(EnumFacing.Axis.X)) + 1;
++        final int k = MathHelper.floor(p_212391_1_.getStart(EnumFacing.Axis.Y)) - 1;
++        final int l = MathHelper.ceil(p_212391_1_.getEnd(EnumFacing.Axis.Y)) + 1;
++        final int i1 = MathHelper.floor(p_212391_1_.getStart(EnumFacing.Axis.Z)) - 1;
++        final int j1 = MathHelper.ceil(p_212391_1_.getEnd(EnumFacing.Axis.Z)) + 1;
++        final WorldBorder worldborder = this.getWorldBorder();
++        final boolean flag = worldborder.minX() < (double) i && (double) j < worldborder.maxX() && worldborder.minZ() < (double) i1 && (double) j1 < worldborder.maxZ();
++        final VoxelShapePart voxelshapepart = new VoxelShapePartBitSet(j - i, l - k, j1 - i1);
++
++        final java.util.Collection<VoxelShape> coll = new java.util.ArrayList<>();
++
++        Predicate<VoxelShape> predicate = (p_212393_1_) ->
++            !p_212393_1_.isEmpty() && VoxelShapes.compare(p_212391_1_, p_212393_1_, IBooleanFunction.AND);
++
++        final BlockPos.PooledMutableBlockPos p_212390_12_ = BlockPos.PooledMutableBlockPos.retain();
++
++        for (int k1 = i; k1 <= j - 1; ++k1)
++        {
++            for (int l1 = k; l1 <= l - 1; ++l1)
++            {
++                for (int i2 = i1; i2 <= j1 - 1; ++i2)
++                {
++                    p_212390_12_.setPos(k1,l1,i2);
++
++                    boolean flag1 = k1 == i || k1 == j - 1;
++                    boolean flag2 = l1 == k || l1 == l - 1;
++                    boolean flag3 = i2 == i1 || i2 == j1 - 1;
++
++                    if ((!flag1 || !flag2) && (!flag2 || !flag3) && (!flag3 || !flag1) && this.isBlockLoaded(p_212390_12_))
++                    {
++                        final VoxelShape voxelshape;
++
++                        if (p_212391_3_ && !flag && !worldborder.contains(p_212390_12_))
++                        {
++                            voxelshape = VoxelShapes.fullCube();
++                        }
++                        else
++                        {
++                            voxelshape = this.getBlockState(p_212390_12_).getCollisionShape(this, p_212390_12_);
++                        }
++
++                        VoxelShape voxelshape1 = p_212391_2_.withOffset((double)(-k1), (double)(-l1), (double)(-i2));
++
++                        if (!VoxelShapes.compare(voxelshape1, voxelshape, IBooleanFunction.AND))
++                        {
++                            if (voxelshape == VoxelShapes.fullCube())
++                                voxelshapepart.setFilled(k1 - i, l1 - k, i2 - i1, true, true);
++                            else
++                            {
++                                final VoxelShape shape = voxelshape.withOffset((double) k1, (double) l1, (double) i2);
++
++                                if (predicate.test(shape))
++                                    coll.add(shape);
++                            }
++                        }
++                    }
++                }
++            }
++        }
++
++        p_212390_12_.close();
++
++        final VoxelShape shape = new VoxelShapeInt(voxelshapepart, i, k, i1);
++
++        if (predicate.test(shape))
++            coll.add(shape);
++
++        return coll;
++    }
++
+ default Stream<VoxelShape> func_212391_a(VoxelShape p_212391_1_, VoxelShape p_212391_2_, boolean p_212391_3_)
+     {
+         int i = MathHelper.floor(p_212391_1_.getStart(EnumFacing.Axis.X)) - 1;
+@@ -193,11 +327,365 @@
+         }).limit(1L).filter(predicate));
+     }
+ 
++    default ocd.mcoptimizations.shapecast.IShapecaster createShapecaster(@Nullable final Entity entity, final AxisAlignedBB box, final double dx, final double dy, final double dz)
++    {
++        return this.createShapecaster(entity, Collections.emptySet(), box, dx, dy, dz, null);
++    }
++
++    default ocd.mcoptimizations.shapecast.IShapecaster createShapecaster(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, double dx, double dy, double dz, @Nullable final Predicate<VoxelShape> filter)
++    {
++        if (Math.abs(dx) < 1E-7D)
++            dx = 0.;
++
++        if (Math.abs(dy) < 1E-7D)
++            dy = 0.;
++
++        if (Math.abs(dz) < 1E-7D)
++            dz = 0.;
++
++        if (dx == 0. && dy == 0. & dz == 0.)
++            return ocd.mcoptimizations.shapecast.EmptyShapecaster.INSTANCE;
++
++        final double xMin = dx < 0. ? box.minX + dx : (dy == 0. && dz == 0. ? box.maxX : box.minX);
++        final double xMax = dx > 0. ? box.maxX + dx : (dy == 0. && dz == 0. ? box.minX : box.maxX);
++        final double yMin = dy < 0. ? box.minY + dy : (dx == 0. && dz == 0. ? box.maxY : box.minY);
++        final double yMax = dy > 0. ? box.maxY + dy : (dx == 0. && dz == 0. ? box.minY : box.maxY);
++        final double zMin = dz < 0. ? box.minZ + dz : (dy == 0. && dx == 0. ? box.maxZ : box.minZ);
++        final double zMax = dz > 0. ? box.maxZ + dz : (dy == 0. && dx == 0. ? box.minZ : box.maxZ);
++
++        return this.createShapecaster(entity, ignoredEntities, new AxisAlignedBB(xMin, yMin, zMin, xMax, yMax, zMax), filter);
++    }
++
++    default ocd.mcoptimizations.shapecast.IShapecaster createShapecaster(@Nullable final Entity entity, final AxisAlignedBB box)
++    {
++        return this.createShapecaster(entity, Collections.emptySet(), box, null);
++    }
++
++    default ocd.mcoptimizations.shapecast.IShapecaster createShapecaster(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter)
++    {
++        final boolean entityWasOutsideBorder = entity != null && entity.isOutsideBorder();
++        final boolean entityIsInsideBorder = entity != null && this.isInsideWorldBorder(entity);
++
++        if (entity != null && entityWasOutsideBorder == entityIsInsideBorder)
++            entity.setOutsideBorder(!entityIsInsideBorder);
++
++        return new ocd.mcoptimizations.shapecast.LazyShapecaster(entity, ignoredEntities, box, filter)
++        {
++            @Override
++            protected double shapecast(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB shape, final EnumFacing.Axis axis, double maxDist, @Nullable final Predicate<VoxelShape> filter)
++            {
++                class ShapecastConsumer implements Predicate<VoxelShape>
++                {
++                    double d = maxDist;
++
++                    @Override
++                    public boolean test(final VoxelShape voxelshape)
++                    {
++                        return (d = voxelshape.func_212430_a(axis, shape, d)) == 0.;
++                    }
++                }
++
++                final double xMin = axis == EnumFacing.Axis.X ? maxDist > 0. ? shape.maxX : (shape.minX + maxDist) : shape.minX;
++                final double xMax = axis == EnumFacing.Axis.X ? maxDist > 0. ? (shape.maxX + maxDist) : shape.minX : shape.maxX;
++                final double yMin = axis == EnumFacing.Axis.Y ? maxDist > 0. ? shape.maxY : (shape.minY + maxDist) : shape.minY;
++                final double yMax = axis == EnumFacing.Axis.Y ? maxDist > 0. ? (shape.maxY + maxDist) : shape.minY : shape.maxY;
++                final double zMin = axis == EnumFacing.Axis.Z ? maxDist > 0. ? shape.maxZ : (shape.minZ + maxDist) : shape.minZ;
++                final double zMax = axis == EnumFacing.Axis.Z ? maxDist > 0. ? (shape.maxZ + maxDist) : shape.minZ : shape.maxZ;
++
++                final ShapecastConsumer consumer = new ShapecastConsumer();
++
++                this.process(entity, new AxisAlignedBB(xMin, yMin, zMin, xMax, yMax, zMax), filter, consumer);
++
++                return consumer.d;
++            }
++
++            @Override
++            protected boolean isEmpty(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter)
++            {
++                class TestEmptyConsumer implements Predicate<VoxelShape>
++                {
++                    boolean empty = true;
++
++                    @Override
++                    public boolean test(final VoxelShape voxelshape)
++                    {
++                        return !(empty = !voxelshape.intersects(box));
++                    }
++                }
++
++                final TestEmptyConsumer consumer = new TestEmptyConsumer();
++
++                this.process(entity, box, filter, consumer);
++
++                return consumer.empty;
++            }
++
++            private void process(@Nullable final Entity entity, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter, Predicate<VoxelShape> consumer)
++            {
++                final boolean entityInsideBorder = entity != null && !entity.isOutsideBorder();
++
++                final int xMin = MathHelper.floor(box.minX);
++                final int xMax = MathHelper.ceil(box.maxX);
++                final int yMin = MathHelper.floor(box.minY) - 1;
++                final int yMax = MathHelper.ceil(box.maxY);
++                final int zMin = MathHelper.floor(box.minZ);
++                final int zMax = MathHelper.ceil(box.maxZ);
++
++                final WorldBorder worldborder = IWorldReaderBase.this.getWorldBorder();
++                final boolean boxInsideBorder = worldborder.minX() < (double) xMin && (double) xMax < worldborder.maxX() && worldborder.minZ() < (double) zMin && (double) zMax < worldborder.maxZ();
++
++                final BlockPos.PooledMutableBlockPos pos = BlockPos.PooledMutableBlockPos.retain();
++
++                for (int x = xMin; x < xMax; ++x)
++                {
++                    for (int y = yMin; y < yMax; ++y)
++                    {
++                        for (int z = zMin; z < zMax; ++z)
++                        {
++                            pos.setPos(x, y, z);
++
++                            if (IWorldReaderBase.this.isBlockLoaded(pos))
++                            {
++                                VoxelShape voxelshape;
++
++                                if (entityInsideBorder && !boxInsideBorder && !worldborder.contains(pos))
++                                    voxelshape = VoxelShapes.fullCube();
++                                else
++                                    voxelshape = IWorldReaderBase.this.getBlockState(pos).getCollisionShape(IWorldReaderBase.this, pos);
++
++                                if (!voxelshape.isEmpty())
++                                {
++                                    voxelshape = voxelshape.withOffset((double) x, (double) y, (double) z);
++
++                                    if ((filter == null || filter.test(voxelshape)) && consumer.test(voxelshape))
++                                    {
++                                        pos.close();
++                                        return;
++                                    }
++                                }
++                            }
++                        }
++                    }
++                }
++
++                pos.close();
++            }
++        };
++    }
++
++    default net.minecraft.util.math.Vec3d shapecastVec(@Nullable final Entity entity, final AxisAlignedBB box, final double x, final double y, final double z)
++    {
++        return this.shapecastVec(entity, Collections.emptySet(), box, x, y, z);
++    }
++
++    default AxisAlignedBB shapecast(@Nullable final Entity entity, final AxisAlignedBB box, final double x, final double y, final double z)
++    {
++        return this.shapecast(entity, Collections.emptySet(), box, x, y, z);
++    }
++
++    default net.minecraft.util.math.Vec3d shapecastVec(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, double x, double y, double z)
++    {
++        final boolean flag = entity != null && entity.isOutsideBorder();
++        final boolean flag1 = entity != null && this.isInsideWorldBorder(entity);
++
++        if (entity != null && flag == flag1)
++            entity.setOutsideBorder(!flag1);
++
++        if (Math.abs(x) < 1E-7D)
++            x = 0.;
++
++        if (Math.abs(y) < 1E-7D)
++            y = 0.;
++
++        if (Math.abs(z) < 1E-7D)
++            z = 0.;
++
++        if (x == 0. && y == 0. && z == 0.)
++            return net.minecraft.util.math.Vec3d.ZERO;
++
++        final int i = MathHelper.floor(x < 0. ? box.minX + x : (y == 0. && z == 0. ? box.maxX : box.minX));
++        final int j = MathHelper.ceil(x > 0. ? box.maxX + x : (y == 0. && z == 0. ? box.minX : box.maxX));
++        final int k = MathHelper.floor(y < 0. ? box.minY + y : (x == 0. && z == 0. ? box.maxY : box.minY)) - 1;
++        final int l = MathHelper.ceil(y > 0. ? box.maxY + y : (x == 0. && z == 0. ? box.minY : box.maxY));
++        final int i1 = MathHelper.floor(z < 0. ? box.minZ + z : (y == 0. && x == 0. ? box.maxZ : box.minZ));
++        final int j1 = MathHelper.ceil(z > 0. ? box.maxZ + z : (y == 0. && x == 0. ? box.minZ : box.maxZ));
++
++        final WorldBorder worldborder = this.getWorldBorder();
++        final boolean flag2 = worldborder.minX() < (double) i && (double) j < worldborder.maxX() && worldborder.minZ() < (double) i1 && (double) j1 < worldborder.maxZ();
++
++        final BlockPos.PooledMutableBlockPos pos = BlockPos.PooledMutableBlockPos.retain();
++
++        for (int k1 = i; k1 <= j - 1; ++k1)
++        {
++            for (int l1 = k; l1 <= l - 1; ++l1)
++            {
++                for (int i2 = i1; i2 <= j1 - 1; ++i2)
++                {
++                    pos.setPos(k1, l1, i2);
++
++                    if (this.isBlockLoaded(pos))
++                    {
++                        final VoxelShape voxelshape;
++
++                        if (flag1 && !flag2 && !worldborder.contains(pos))
++                        {
++                            voxelshape = VoxelShapes.fullCube();
++                        }
++                        else
++                        {
++                            voxelshape = this.getBlockState(pos).getCollisionShape(this, pos);
++                        }
++
++                        if (!voxelshape.isEmpty())
++                        {
++                            final VoxelShape shape = voxelshape.withOffset((double) k1, (double) l1, (double) i2);
++
++                            if (x != 0.)
++                                x = shape.func_212430_a(EnumFacing.Axis.X, box, x);
++
++                            if (y != 0.)
++                                y = shape.func_212430_a(EnumFacing.Axis.Y, box, y);
++
++                            if (z != 0.)
++                                z = shape.func_212430_a(EnumFacing.Axis.Z, box, z);
++
++                            if ( x == 0. && y == 0. & z == 0.)
++                                return net.minecraft.util.math.Vec3d.ZERO;
++                        }
++                    }
++                }
++            }
++        }
++
++        pos.close();
++
++        return new net.minecraft.util.math.Vec3d(x, y ,z);
++    }
++
++    default AxisAlignedBB shapecast(@Nullable final Entity entity, final Set<Entity> ignoredEntities, AxisAlignedBB box, double x, double y, double z)
++    {
++        final boolean flag = entity != null && entity.isOutsideBorder();
++        final boolean flag1 = entity != null && this.isInsideWorldBorder(entity);
++
++        if (entity != null && flag == flag1)
++            entity.setOutsideBorder(!flag1);
++
++        if (y != 0.)
++        {
++            y = this.shapecast(entity, ignoredEntities, box, EnumFacing.Axis.Y, y, null);
++
++            if (y != 0.)
++                box = box.offset(0., y, 0.);
++        }
++
++        if (x != 0.)
++        {
++            x = this.shapecast(entity, ignoredEntities, box, EnumFacing.Axis.X, x, null);
++
++            if (x != 0.)
++                box = box.offset(x, 0., 0.);
++        }
++
++        if (z != 0.)
++        {
++            z = this.shapecast(entity, ignoredEntities, box, EnumFacing.Axis.Z, z, null);
++
++            if (z != 0.)
++                box = box.offset(0., 0., z);
++        }
++
++        return box;
++    }
++
++    default double shapecast(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, final EnumFacing.Axis axis, double d, @Nullable final Predicate<VoxelShape> filter)
++    {
++        if (Math.abs(d) < 1E-7D)
++            return 0.;
++
++        final boolean flag1 = entity != null && !entity.isOutsideBorder();
++
++        final int i = MathHelper.floor(axis == EnumFacing.Axis.X ? d > 0. ? box.getMax(EnumFacing.Axis.X) : (box.getMin(EnumFacing.Axis.X) + d) : box.getMin(EnumFacing.Axis.X));
++        final int j = MathHelper.ceil(axis == EnumFacing.Axis.X ? d > 0. ? (box.getMax(EnumFacing.Axis.X) + d) : box.getMin(EnumFacing.Axis.X) : box.getMax(EnumFacing.Axis.X));
++        final int k = MathHelper.floor(axis == EnumFacing.Axis.Y ? d > 0. ? box.getMax(EnumFacing.Axis.Y) : (box.getMin(EnumFacing.Axis.Y) + d) : box.getMin(EnumFacing.Axis.Y)) - 1;
++        final int l = MathHelper.ceil(axis == EnumFacing.Axis.Y ? d > 0. ? (box.getMax(EnumFacing.Axis.Y) + d) : box.getMin(EnumFacing.Axis.Y) : box.getMax(EnumFacing.Axis.Y));
++        final int i1 = MathHelper.floor(axis == EnumFacing.Axis.Z ? d > 0. ? box.getMax(EnumFacing.Axis.Z) : (box.getMin(EnumFacing.Axis.Z) + d) : box.getMin(EnumFacing.Axis.Z));
++        final int j1 = MathHelper.ceil(axis == EnumFacing.Axis.Z ? d > 0. ? (box.getMax(EnumFacing.Axis.Z) + d) : box.getMin(EnumFacing.Axis.Z) : box.getMax(EnumFacing.Axis.Z));
++
++        final WorldBorder worldborder = this.getWorldBorder();
++        final boolean flag2 = worldborder.minX() < (double) i && (double) j < worldborder.maxX() && worldborder.minZ() < (double) i1 && (double) j1 < worldborder.maxZ();
++
++        final BlockPos.PooledMutableBlockPos p_212390_12_ = BlockPos.PooledMutableBlockPos.retain();
++
++        for (int k1 = i; k1 <= j - 1; ++k1)
++        {
++            for (int l1 = k; l1 <= l - 1; ++l1)
++            {
++                for (int i2 = i1; i2 <= j1 - 1; ++i2)
++                {
++                    p_212390_12_.setPos(k1,l1,i2);
++
++                    if (this.isBlockLoaded(p_212390_12_))
++                    {
++                        final VoxelShape voxelshape;
++
++                        if (flag1 && !flag2 && !worldborder.contains(p_212390_12_))
++                            voxelshape = VoxelShapes.fullCube();
++                        else
++                            voxelshape = this.getBlockState(p_212390_12_).getCollisionShape(this, p_212390_12_);
++
++                        if (!voxelshape.isEmpty())
++                        {
++                            final VoxelShape shape = voxelshape.withOffset((double) k1, (double) l1, (double) i2);
++
++                            if (filter == null || filter.test(shape))
++                            {
++                                d = shape.func_212430_a(axis, box, d);
++
++                                if (d == 0.)
++                                    return 0.;
++                            }
++                        }
++                    }
++                }
++            }
++        }
++
++        p_212390_12_.close();
++
++        return d;
++    }
++
++    default java.util.Collection<VoxelShape> getCollisionBoxesColl(@Nullable final Entity p_199406_1_, final AxisAlignedBB entityBB, final double x, final double y, final double z)
++    {
++        return this.func_212389_aColl(p_199406_1_, entityBB, Collections.emptySet(), x, y, z);
++    }
++
++    default java.util.Collection<VoxelShape> getCollisionBoxesCollFiltered(@Nullable final Entity p_199406_1_, final AxisAlignedBB entityBB, final double x, final double y, final double z)
++    {
++        return this.func_212389_aCollFiltered(p_199406_1_, entityBB, Collections.emptySet(), x, y, z);
++    }
++
+ default Stream<VoxelShape> getCollisionBoxes(@Nullable Entity p_199406_1_, AxisAlignedBB entityBB, double x, double y, double z)
+     {
+         return this.func_212389_a(p_199406_1_, entityBB, Collections.emptySet(), x, y, z);
+     }
+ 
++    default java.util.Collection<VoxelShape> func_212389_aColl(@Nullable final Entity p_212389_1_, final AxisAlignedBB p_212389_2_, final Set<Entity> p_212389_3_, final double p_212389_4_, final double p_212389_6_, final double p_212389_8_)
++    {
++        final double d0 = 1.0E-7D;
++        final VoxelShape voxelshape = VoxelShapes.create(p_212389_2_);
++        return this.func_212392_aColl(p_212389_1_, VoxelShapes.create(p_212389_2_.expand(p_212389_4_, p_212389_6_, p_212389_8_).grow(1.0E-7D)), voxelshape, p_212389_3_);
++    }
++
++    default java.util.Collection<VoxelShape> func_212389_aCollFiltered(@Nullable final Entity p_212389_1_, final AxisAlignedBB p_212389_2_, final Set<Entity> p_212389_3_, final double p_212389_4_, final double p_212389_6_, final double p_212389_8_)
++    {
++        double d0 = 1.0E-7D;
++        VoxelShape voxelshape = VoxelShapes.create(p_212389_2_);
++        VoxelShape voxelshape1 = VoxelShapes.create(p_212389_2_.offset(p_212389_4_ > 0.0D ? -1.0E-7D : 1.0E-7D, p_212389_6_ > 0.0D ? -1.0E-7D : 1.0E-7D, p_212389_8_ > 0.0D ? -1.0E-7D : 1.0E-7D));
++        VoxelShape voxelshape2 = VoxelShapes.combine(VoxelShapes.create(p_212389_2_.expand(p_212389_4_, p_212389_6_, p_212389_8_).grow(1.0E-7D)), voxelshape1, IBooleanFunction.ONLY_FIRST);
++        return this.func_212392_aCollFiltered(p_212389_1_, voxelshape2, voxelshape, p_212389_3_);
++    }
++
+ default Stream<VoxelShape> func_212389_a(@Nullable Entity p_212389_1_, AxisAlignedBB p_212389_2_, Set<Entity> p_212389_3_, double p_212389_4_, double p_212389_6_, double p_212389_8_)
+     {
+         double d0 = 1.0E-7D;
+@@ -212,6 +700,32 @@
+         return this.func_212392_a(p_212388_1_, VoxelShapes.create(p_212388_2_), VoxelShapes.empty(), Collections.emptySet());
+     }
+ 
++    default java.util.Collection<VoxelShape> func_212392_aColl(@Nullable final Entity p_212392_1_, final VoxelShape p_212392_2_, final VoxelShape p_212392_3_, final Set<Entity> p_212392_4_)
++    {
++        final boolean flag = p_212392_1_ != null && p_212392_1_.isOutsideBorder();
++        final boolean flag1 = p_212392_1_ != null && this.isInsideWorldBorder(p_212392_1_);
++
++        if (p_212392_1_ != null && flag == flag1)
++        {
++            p_212392_1_.setOutsideBorder(!flag1);
++        }
++
++        return this.func_212391_aColl(p_212392_2_, p_212392_3_, flag1);
++    }
++
++    default java.util.Collection<VoxelShape> func_212392_aCollFiltered(@Nullable final Entity p_212392_1_, final VoxelShape p_212392_2_, final VoxelShape p_212392_3_, final Set<Entity> p_212392_4_)
++    {
++        final boolean flag = p_212392_1_ != null && p_212392_1_.isOutsideBorder();
++        final boolean flag1 = p_212392_1_ != null && this.isInsideWorldBorder(p_212392_1_);
++
++        if (p_212392_1_ != null && flag == flag1)
++        {
++            p_212392_1_.setOutsideBorder(!flag1);
++        }
++
++        return this.func_212391_aCollFiltered(p_212392_2_, p_212392_3_, flag1);
++    }
++
+ default Stream<VoxelShape> func_212392_a(@Nullable Entity p_212392_1_, VoxelShape p_212392_2_, VoxelShape p_212392_3_, Set<Entity> p_212392_4_)
+     {
+         boolean flag = p_212392_1_ != null && p_212392_1_.isOutsideBorder();
+@@ -253,7 +767,7 @@
+ 
+ default boolean isCollisionBoxesEmpty(@Nullable Entity entityIn, AxisAlignedBB aabb, Set<Entity> entitiesToIgnore)
+     {
+-        return this.func_212392_a(entityIn, VoxelShapes.create(aabb), VoxelShapes.empty(), entitiesToIgnore).allMatch(VoxelShape::isEmpty);
++        return this.createShapecaster(entityIn, entitiesToIgnore, aabb, null).isEmpty();
+     }
+ 
+ default boolean isCollisionBoxesEmpty(@Nullable Entity entityIn, AxisAlignedBB aabb)

@@ -1,0 +1,35 @@
+--- a/net/minecraft/util/math/shapes/VoxelShapes.java
++++ b/net/minecraft/util/math/shapes/VoxelShapes.java
+@@ -19,11 +19,7 @@
+ {
+     private static final VoxelShape EMPTY = new VoxelShapeArray(new VoxelShapePartBitSet(0, 0, 0), new DoubleArrayList(new double[] {0.0D}), new DoubleArrayList(new double[] {0.0D}), new DoubleArrayList(new double[] {0.0D}));
+     private static final VoxelShape FULL_CUBE = (VoxelShape)Util.make(() ->
+-    {
+-        VoxelShapePart voxelshapepart = new VoxelShapePartBitSet(1, 1, 1);
+-        voxelshapepart.setFilled(0, 0, 0, true, true);
+-        return new VoxelShapeCube(voxelshapepart);
+-    });
++        new AxisAlignedBB(0., 0., 0., 1., 1., 1.));
+ 
+     public static VoxelShape empty()
+     {
+@@ -214,6 +210,19 @@
+         });
+     }
+ 
++    public static double func_212437_a(final EnumFacing.Axis p_212437_0_, final AxisAlignedBB p_212437_1_, final java.util.Collection<VoxelShape> p_212437_2_, double p_212437_3_)
++    {
++        for (final Iterator<VoxelShape> iterator = p_212437_2_.iterator(); iterator.hasNext(); p_212437_3_ = ((VoxelShape)iterator.next()).func_212430_a(p_212437_0_, p_212437_1_, p_212437_3_))
++        {
++            if (Math.abs(p_212437_3_) < 1.0E-7D)
++            {
++                return 0.0D;
++            }
++        }
++
++        return p_212437_3_;
++    }
++
+     public static double func_212437_a(EnumFacing.Axis p_212437_0_, AxisAlignedBB p_212437_1_, Stream<VoxelShape> p_212437_2_, double p_212437_3_)
+     {
+         for (Iterator<VoxelShape> iterator = p_212437_2_.iterator(); iterator.hasNext(); p_212437_3_ = ((VoxelShape)iterator.next()).func_212430_a(p_212437_0_, p_212437_1_, p_212437_3_))

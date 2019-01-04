@@ -1,0 +1,197 @@
+--- a/net/minecraft/world/IEntityReader.java
++++ b/net/minecraft/world/IEntityReader.java
+@@ -21,8 +21,193 @@
+         return this.getEntitiesInAABBexcluding(entityIn, bb, EntitySelectors.NOT_SPECTATING);
+     }
+ 
+-default Stream<VoxelShape> getCollisionBoxes(@Nullable Entity entityIn, VoxelShape shape, Set<Entity> breakOnEntityCollide)
++    default ocd.mcoptimizations.shapecast.IShapecaster createShapecaster(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter)
+     {
++        return ocd.mcoptimizations.shapecast.CollectionShapecaster.create(getCollisionBoxes(entity, ignoredEntities, box, filter));
++    }
++
++    default net.minecraft.util.math.Vec3d shapecastVec(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, double x, double y, double z)
++    {
++        if (Math.abs(x) < 1E-7D)
++            x = 0.;
++
++        if (Math.abs(y) < 1E-7D)
++            y = 0.;
++
++        if (Math.abs(z) < 1E-7D)
++            z = 0.;
++
++        if ( x == 0. && y == 0. & z == 0.)
++            return net.minecraft.util.math.Vec3d.ZERO;
++
++        final int xMin = net.minecraft.util.math.MathHelper.floor(x < 0. ? box.minX + x : (y == 0. && z == 0. ? box.maxX : box.minX));
++        final int xMax = net.minecraft.util.math.MathHelper.ceil(x > 0. ? box.maxX + x : (y == 0. && z == 0. ? box.minX : box.maxX));
++        final int yMin = net.minecraft.util.math.MathHelper.floor(y < 0. ? box.minY + y : (x == 0. && z == 0. ? box.maxY : box.minY));
++        final int yMax = net.minecraft.util.math.MathHelper.ceil(y > 0. ? box.maxY + y : (x == 0. && z == 0. ? box.minY : box.maxY));
++        final int zMin = net.minecraft.util.math.MathHelper.floor(z < 0. ? box.minZ + z : (y == 0. && x == 0. ? box.maxZ : box.minZ));
++        final int zMax = net.minecraft.util.math.MathHelper.ceil(z > 0. ? box.maxZ + z : (y == 0. && x == 0. ? box.minZ : box.maxZ));
++
++        final AxisAlignedBB searchBox = new AxisAlignedBB(xMin, yMin, zMin, xMax, yMax, zMax);
++
++        for (final Entity entity_ : this.getEntitiesWithinAABBExcludingEntity(entity, searchBox))
++        {
++            if (!ignoredEntities.contains(entity_) && (entity == null || !entity.isRidingSameEntity(entity_)))
++            {
++                AxisAlignedBB bb = entity_.getCollisionBoundingBox();
++
++                if (bb != null)
++                {
++                    if (x != 0.)
++                        x = bb.func_212430_a(net.minecraft.util.EnumFacing.Axis.X, box, x);
++
++                    if (y != 0.)
++                        y = bb.func_212430_a(net.minecraft.util.EnumFacing.Axis.Y, box, y);
++
++                    if (z != 0.)
++                        z = bb.func_212430_a(net.minecraft.util.EnumFacing.Axis.Z, box, z);
++
++                    if ( x == 0. && y == 0. & z == 0.)
++                        return net.minecraft.util.math.Vec3d.ZERO;
++                }
++
++                if (entity != null)
++                {
++                    bb = entity.getCollisionBox(entity_);
++
++                    if (bb != null)
++                    {
++                        if (x != 0.)
++                            x = bb.func_212430_a(net.minecraft.util.EnumFacing.Axis.X, box, x);
++
++                        if (y != 0.)
++                            y = bb.func_212430_a(net.minecraft.util.EnumFacing.Axis.Y, box, y);
++
++                        if (z != 0.)
++                            z = bb.func_212430_a(net.minecraft.util.EnumFacing.Axis.Z, box, z);
++
++                        if ( x == 0. && y == 0. & z == 0.)
++                            return net.minecraft.util.math.Vec3d.ZERO;
++                    }
++                }
++            }
++        }
++
++        return new net.minecraft.util.math.Vec3d(x, y ,z);
++    }
++
++    default double shapecast(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, final net.minecraft.util.EnumFacing.Axis axis, double d)
++    {
++        if (Math.abs(d) < 1E-7D)
++            return 0;
++
++        final int xMin = net.minecraft.util.math.MathHelper.floor(axis == net.minecraft.util.EnumFacing.Axis.X ? d > 0 ? box.getMax(net.minecraft.util.EnumFacing.Axis.X) : (box.getMin(net.minecraft.util.EnumFacing.Axis.X) + d) : box.getMin(net.minecraft.util.EnumFacing.Axis.X))  - 1;
++        final int xMax = net.minecraft.util.math.MathHelper.ceil(axis == net.minecraft.util.EnumFacing.Axis.X ? d > 0 ? (box.getMax(net.minecraft.util.EnumFacing.Axis.X) + d) : box.getMin(net.minecraft.util.EnumFacing.Axis.X) : box.getMax(net.minecraft.util.EnumFacing.Axis.X)) + 1;
++        final int yMin = net.minecraft.util.math.MathHelper.floor(axis == net.minecraft.util.EnumFacing.Axis.Y ? d > 0 ? box.getMax(net.minecraft.util.EnumFacing.Axis.Y) : (box.getMin(net.minecraft.util.EnumFacing.Axis.Y) + d) : box.getMin(net.minecraft.util.EnumFacing.Axis.Y)) - 1;
++        final int yMax = net.minecraft.util.math.MathHelper.ceil(axis == net.minecraft.util.EnumFacing.Axis.Y ? d > 0 ? (box.getMax(net.minecraft.util.EnumFacing.Axis.Y) + d) : box.getMin(net.minecraft.util.EnumFacing.Axis.Y) : box.getMax(net.minecraft.util.EnumFacing.Axis.Y)) + 1;
++        final int zMin = net.minecraft.util.math.MathHelper.floor(axis == net.minecraft.util.EnumFacing.Axis.Z ? d > 0 ? box.getMax(net.minecraft.util.EnumFacing.Axis.Z) : (box.getMin(net.minecraft.util.EnumFacing.Axis.Z) + d) : box.getMin(net.minecraft.util.EnumFacing.Axis.Z)) - 1;
++        final int zMax = net.minecraft.util.math.MathHelper.ceil(axis == net.minecraft.util.EnumFacing.Axis.Z ? d > 0 ? (box.getMax(net.minecraft.util.EnumFacing.Axis.Z) + d) : box.getMin(net.minecraft.util.EnumFacing.Axis.Z) : box.getMax(net.minecraft.util.EnumFacing.Axis.Z)) + 1;
++
++        final AxisAlignedBB searchBox = new AxisAlignedBB(xMin, yMin, zMin, xMax, yMax, zMax);
++
++        for (final Entity p_212382_2_ : this.getEntitiesWithinAABBExcludingEntity(entity, searchBox))
++        {
++            if (!ignoredEntities.contains(p_212382_2_) && (entity == null || !entity.isRidingSameEntity(p_212382_2_)))
++            {
++                AxisAlignedBB bb = p_212382_2_.getCollisionBoundingBox();
++
++                if (bb != null)
++                {
++                    d = VoxelShapes.create(bb).func_212430_a(axis, box, d);
++
++                    if (Math.abs(d) < 1E-7D)
++                        return 0;
++                }
++
++                if (entity != null)
++                {
++                    bb = entity.getCollisionBox(p_212382_2_);
++
++                    if (bb != null)
++                    {
++                        d = VoxelShapes.create(bb).func_212430_a(axis, box, d);
++
++                        if (Math.abs(d) < 1E-7D)
++                            return 0;
++                    }
++                }
++            }
++        }
++
++        return d;
++    }
++
++    default java.util.Collection<VoxelShape> getCollisionBoxes(@Nullable final Entity entityIn, final Set<Entity> ignoredEntities, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter)
++    {
++        final List<Entity> entities = this.getEntitiesWithinAABBExcludingEntity(entityIn, box);
++
++        if (entities.isEmpty())
++            return java.util.Collections.emptyList();
++
++        final java.util.Collection<VoxelShape> coll = new java.util.ArrayList<>();
++
++        for (final Entity entity : entities)
++        {
++            if (!ignoredEntities.contains(entity) && (entityIn == null || !entityIn.isRidingSameEntity(entity)))
++            {
++                AxisAlignedBB bb = entity.getCollisionBoundingBox();
++
++                if (bb != null && (filter == null || filter.test(bb)))
++                    coll.add(bb);
++
++                if (entityIn != null)
++                {
++                    bb = entityIn.getCollisionBox(entity);
++
++                    if (bb != null && (filter == null || filter.test(bb)))
++                        coll.add(bb);
++                }
++            }
++        }
++
++        return coll;
++    }
++
++    default java.util.Collection<VoxelShape> getCollisionBoxesFiltered(@Nullable final Entity entityIn, final Set<Entity> ignoredEntities, final AxisAlignedBB box)
++    {
++        if (box.isEmpty())
++            return java.util.Collections.emptyList();
++
++        final List<Entity> entities = this.getEntitiesWithinAABBExcludingEntity(entityIn, box);
++
++        if (entities.isEmpty())
++            return java.util.Collections.emptyList();
++
++        final java.util.Collection<VoxelShape> coll = new java.util.ArrayList<>();
++
++        for (final Entity entity : entities)
++        {
++            if (!ignoredEntities.contains(entity) && (entityIn == null || !entityIn.isRidingSameEntity(entity)))
++            {
++                AxisAlignedBB bb = entity.getCollisionBoundingBox();
++
++                if (bb != null && bb.intersects(box))
++                    coll.add(VoxelShapes.create(bb));
++
++                if (entityIn != null)
++                {
++                    bb = entityIn.getCollisionBox(entity);
++
++                    if (bb != null && bb.intersects(box))
++                        coll.add(VoxelShapes.create(bb));
++                }
++            }
++        }
++
++        return coll;
++    }
++
++default Stream<VoxelShape> getCollisionBoxes(@Nullable final Entity entityIn, final VoxelShape shape, final Set<Entity> breakOnEntityCollide)
++    {
+         if (shape.isEmpty())
+         {
+             return Stream.<VoxelShape>empty();

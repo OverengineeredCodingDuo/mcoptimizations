@@ -1,0 +1,13 @@
+--- a/net/minecraft/util/math/shapes/VoxelShapeInt.java
++++ b/net/minecraft/util/math/shapes/VoxelShapeInt.java
+@@ -21,4 +21,10 @@
+     {
+         return new IntRangeList(this.part.getSize(axis), axis.getCoordinate(this.x, this.y, this.z));
+     }
++
++    @Override
++    public int getClosestIndex(final EnumFacing.Axis axis, final double position)
++    {
++        return net.minecraft.util.math.MathHelper.clamp(net.minecraft.util.math.MathHelper.floor(position - axis.getCoordinate(this.x, this.y, this.z)), -1, this.part.getSize(axis));
++    }
+ }

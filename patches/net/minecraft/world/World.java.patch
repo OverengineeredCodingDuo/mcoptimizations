@@ -1,0 +1,128 @@
+--- a/net/minecraft/world/World.java
++++ b/net/minecraft/world/World.java
+@@ -2288,6 +2288,125 @@
+         }
+     }
+ 
++    @Override
++    public Vec3d shapecastVec(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, double x, double y, double z)
++    {
++        if (entity != null)
++        {
++            final Vec3d vec = IEntityReader.super.shapecastVec(entity, ignoredEntities, box, x, y, z);
++
++            x = vec.x;
++            y = vec.y;
++            z = vec.z;
++        }
++
++        return IWorld.super.shapecastVec(entity, ignoredEntities, box, x, y, z);
++    }
++
++    @Override
++    public ocd.mcoptimizations.shapecast.IShapecaster createShapecaster(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter)
++    {
++        final ocd.mcoptimizations.shapecast.IShapecaster shapecaster = IWorld.super.createShapecaster(entity, ignoredEntities, box, filter);
++
++        if (entity == null)
++            return shapecaster;
++
++        return ocd.mcoptimizations.shapecast.IShapecaster.combine(IEntityReader.super.createShapecaster(entity, ignoredEntities, box, filter), shapecaster);
++    }
++
++    @Override
++    public AxisAlignedBB shapecast(@Nullable final Entity entity, final Set<Entity> ignoredEntities, AxisAlignedBB box, double x, double y, double z)
++    {
++        if (Math.abs(x) < 1E-7D)
++            x = 0.;
++
++        if (Math.abs(y) < 1E-7D)
++            y = 0.;
++
++        if (Math.abs(z) < 1E-7D)
++            z = 0.;
++
++        if (entity == null)
++            return IWorld.super.shapecast(entity, ignoredEntities, box, x, y, z);
++
++        if (x == 0. && y == 0. && z == 0.)
++            return box;
++
++        final int xMin = MathHelper.floor(x < 0. ? box.minX + x : (y == 0. && z == 0. ? box.maxX : box.minX));
++        final int xMax = MathHelper.ceil(x > 0. ? box.maxX + x : (y == 0. && z == 0. ? box.minX : box.maxX));
++        final int yMin = MathHelper.floor(y < 0. ? box.minY + y : (x == 0. && z == 0. ? box.maxY : box.minY));
++        final int yMax = MathHelper.ceil(y > 0. ? box.maxY + y : (x == 0. && z == 0. ? box.minY : box.maxY));
++        final int zMin = MathHelper.floor(z < 0. ? box.minZ + z : (y == 0. && x == 0. ? box.maxZ : box.minZ));
++        final int zMax = MathHelper.ceil(z > 0. ? box.maxZ + z : (y == 0. && x == 0. ? box.minZ : box.maxZ));
++
++        final AxisAlignedBB searchBox = new AxisAlignedBB(xMin, yMin, zMin, xMax, yMax, zMax);
++
++        final Collection<VoxelShape> shapes = IEntityReader.super.getCollisionBoxes(entity, ignoredEntities, searchBox, null);
++
++        if (y != 0.)
++        {
++            y = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, box, shapes, y);
++            y = IWorld.super.shapecast(entity, ignoredEntities, box, EnumFacing.Axis.Y, y, null);
++
++            if (y != 0.)
++                box = box.offset(0., y, 0.);
++        }
++
++        if (x != 0.)
++        {
++            x = VoxelShapes.func_212437_a(EnumFacing.Axis.X, box, shapes, x);
++            x = IWorld.super.shapecast(entity, ignoredEntities, box, EnumFacing.Axis.X, x, null);
++
++            if (x != 0.)
++                box = box.offset(x, 0., 0.);
++        }
++
++        if (z != 0.)
++        {
++            z = VoxelShapes.func_212437_a(EnumFacing.Axis.Z, box, shapes, z);
++            z = IWorld.super.shapecast(entity, ignoredEntities, box, EnumFacing.Axis.Z, z, null);
++
++            if (z != 0.)
++                box = box.offset(0, 0., z);
++        }
++
++        return box;
++    }
++
++    @Override
++    public double shapecast(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, final EnumFacing.Axis axis, double d)
++    {
++        if (d < 1E-7D)
++            return 0.;
++
++        d = IWorld.super.shapecast(entity, ignoredEntities, box, axis, d, null);
++
++        if (entity == null || d == 0.)
++            return d;
++
++        return IEntityReader.super.shapecast(entity, ignoredEntities, box, axis, d);
++    }
++
++    @Override
++    public Collection<VoxelShape> func_212392_aColl(@Nullable final Entity p_212392_1_, final VoxelShape p_212392_2_, final VoxelShape p_212392_3_, final Set<Entity> p_212392_4_)
++    {
++        final Collection<VoxelShape> coll = IWorld.super.func_212392_aColl(p_212392_1_, p_212392_2_, p_212392_3_, p_212392_4_);
++        if (p_212392_1_ != null)
++            coll.addAll(this.getCollisionBoxes(p_212392_1_, p_212392_4_, p_212392_2_.getBoundingBox(), null));
++
++        return coll;
++    }
++
++    @Override
++    public Collection<VoxelShape> func_212392_aCollFiltered(@Nullable final Entity p_212392_1_, final VoxelShape p_212392_2_, final VoxelShape p_212392_3_, final Set<Entity> p_212392_4_)
++    {
++        final Collection<VoxelShape> coll = IWorld.super.func_212392_aCollFiltered(p_212392_1_, p_212392_2_, p_212392_3_, p_212392_4_);
++        if (p_212392_1_ != null)
++            coll.addAll(this.getCollisionBoxesFiltered(p_212392_1_, p_212392_4_, p_212392_2_.getBoundingBox()));
++
++        return coll;
++    }
++
+     public Stream<VoxelShape> func_212392_a(@Nullable Entity p_212392_1_, VoxelShape p_212392_2_, VoxelShape p_212392_3_, Set<Entity> p_212392_4_)
+     {
+         Stream<VoxelShape> stream = IWorld.super.func_212392_a(p_212392_1_, p_212392_2_, p_212392_3_, p_212392_4_);

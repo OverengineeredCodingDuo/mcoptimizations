@@ -1,0 +1,252 @@
+--- a/net/minecraft/entity/Entity.java
++++ b/net/minecraft/entity/Entity.java
+@@ -568,6 +568,9 @@
+         return this.world.isCollisionBoxesEmpty(this, bb) && !this.world.containsAnyLiquid(bb);
+     }
+ 
++    private static int opCount = 0;
++    private static int nopCount = 0;
++
+     public void move(MoverType type, double x, double y, double z)
+     {
+         if (this.noClip)
+@@ -720,33 +723,164 @@
+ 
+             if (x != 0.0D || y != 0.0D || z != 0.0D)
+             {
+-                ReuseableStream<VoxelShape> reuseablestream = new ReuseableStream<VoxelShape>(this.world.getCollisionBoxes(this, this.getBoundingBox(), x, y, z));
++                final int impl = 2;
+ 
+-                if (y != 0.0D)
++                if (impl == 0)
+                 {
+-                    y = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, this.getBoundingBox(), reuseablestream.func_212761_a(), y);
+-                    this.setBoundingBox(this.getBoundingBox().offset(0.0D, y, 0.0D));
++                    final AxisAlignedBB entityBB = this.getBoundingBox();
++                    final Vec3d vec = this.world.shapecastVec(this, entityBB, x, y, z);
++
++                    x = vec.x;
++                    y = vec.y;
++                    z = vec.z;
++
++                    if (x != 0. || y != 0. || z != 0.)
++                        this.setBoundingBox(entityBB.offset(x, y, z));
+                 }
++                else if (impl == 1)
++                {
++                    final AxisAlignedBB entityBB = this.getBoundingBox();
++                    final AxisAlignedBB box = this.world.shapecast(this, entityBB, x, y, z);
+ 
+-                if (x != 0.0D)
++                    final double x2 = box.minX - entityBB.minX;
++                    final double y2 = box.minY - entityBB.minY;
++                    final double z2 = box.minZ - entityBB.minZ;
++
++                    if (Math.abs(x2 - x) > 1E-7D)
++                        x = x2;
++
++                    if (Math.abs(y2 - y) > 1E-7D)
++                        y = y2;
++
++                    if (Math.abs(z2 - z) > 1E-7D)
++                        z = z2;
++
++                    this.setBoundingBox(box);
++                }
++                else if (impl == 2)
+                 {
+-                    x = VoxelShapes.func_212437_a(EnumFacing.Axis.X, this.getBoundingBox(), reuseablestream.func_212761_a(), x);
++                    final ocd.mcoptimizations.shapecast.IShapecaster shapecaster = this.world.createShapecaster(this, this.getBoundingBox(), x, y, z);
+ 
+-                    if (x != 0.0D)
++                    if (y != 0.)
+                     {
+-                        this.setBoundingBox(this.getBoundingBox().offset(x, 0.0D, 0.0D));
++                        y = shapecaster.shapecast(this.getBoundingBox(), EnumFacing.Axis.Y, y);
++
++                        if (y != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(0., y, 0.));
+                     }
++
++                    if (x != 0.)
++                    {
++                        x = shapecaster.shapecast(this.getBoundingBox(), EnumFacing.Axis.X, x);
++
++                        if (x != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(x, 0., 0.));
++                    }
++
++                    if (z != 0.)
++                    {
++                        z = shapecaster.shapecast(this.getBoundingBox(), EnumFacing.Axis.Z, z);
++
++                        if (z != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(0., 0., z));
++                    }
+                 }
++                else if (impl == 3)
++                {
++                    final Collection<VoxelShape> coll = this.world.getCollisionBoxesColl(this, this.getBoundingBox(), x, y, z);
+ 
+-                if (z != 0.0D)
++                    if (y != 0.)
++                    {
++                        y = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, this.getBoundingBox(), coll, y);
++
++                        if (y != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(0.0D, y, 0.0D));
++                    }
++
++                    if (x != 0.)
++                    {
++                        x = VoxelShapes.func_212437_a(EnumFacing.Axis.X, this.getBoundingBox(), coll, x);
++
++                        if (x != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(x, 0.0D, 0.0D));
++                    }
++
++                    if (z != 0.)
++                    {
++                        z = VoxelShapes.func_212437_a(EnumFacing.Axis.Z, this.getBoundingBox(), coll, z);
++
++                        if (z != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(0.0D, 0.0D, z));
++                    }
++                }
++                else if (impl == 4)
+                 {
+-                    z = VoxelShapes.func_212437_a(EnumFacing.Axis.Z, this.getBoundingBox(), reuseablestream.func_212761_a(), z);
++                    final Collection<VoxelShape> coll = this.world.getCollisionBoxesCollFiltered(this, this.getBoundingBox(), x, y, z);
+ 
++                    if (y != 0.)
++                    {
++                        y = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, this.getBoundingBox(), coll, y);
++
++                        if (y != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(0.0D, y, 0.0D));
++                    }
++
++                    if (x != 0.)
++                    {
++                        x = VoxelShapes.func_212437_a(EnumFacing.Axis.X, this.getBoundingBox(), coll, x);
++
++                        if (x != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(x, 0.0D, 0.0D));
++                    }
++
++                    if (z != 0.)
++                    {
++                        z = VoxelShapes.func_212437_a(EnumFacing.Axis.Z, this.getBoundingBox(), coll, z);
++
++                        if (z != 0.)
++                            this.setBoundingBox(this.getBoundingBox().offset(0.0D, 0.0D, z));
++                    }
++                }
++                else if (impl == 5)
++                {
++                    ReuseableStream<VoxelShape> reuseablestream = new ReuseableStream<VoxelShape>(this.world.getCollisionBoxes(this, this.getBoundingBox(), x, y, z));
++
++                    if (y != 0.0D)
++                    {
++                        y = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, this.getBoundingBox(), reuseablestream.func_212761_a(), y);
++                        this.setBoundingBox(this.getBoundingBox().offset(0.0D, y, 0.0D));
++                    }
++
++                    if (x != 0.0D)
++                    {
++                        x = VoxelShapes.func_212437_a(EnumFacing.Axis.X, this.getBoundingBox(), reuseablestream.func_212761_a(), x);
++
++                        if (x != 0.0D)
++                        {
++                            this.setBoundingBox(this.getBoundingBox().offset(x, 0.0D, 0.0D));
++                        }
++                    }
++
+                     if (z != 0.0D)
+                     {
+-                        this.setBoundingBox(this.getBoundingBox().offset(0.0D, 0.0D, z));
++                        z = VoxelShapes.func_212437_a(EnumFacing.Axis.Z, this.getBoundingBox(), reuseablestream.func_212761_a(), z);
++
++                        if (z != 0.0D)
++                        {
++                            this.setBoundingBox(this.getBoundingBox().offset(0.0D, 0.0D, z));
++                        }
+                     }
+                 }
++
++                if (x == 0. && y == 0. && z == 0.)
++                    ++nopCount;
++
++                if (++opCount % 10000 == 0)
++                    System.out.println(Math.round((1000. * nopCount) / opCount) / 10.);
++
++                if (opCount % 100000 == 0)
++                    opCount = nopCount = 0;
++
+             }
+ 
+             boolean flag = this.onGround || d3 != y && d3 < 0.0D;
+@@ -764,24 +898,25 @@
+ 
+                 if (d2 != 0.0D || y != 0.0D || d4 != 0.0D)
+                 {
+-                    ReuseableStream<VoxelShape> reuseablestream1 = new ReuseableStream<VoxelShape>(this.world.getCollisionBoxes(this, this.getBoundingBox(), d2, y, d4));
++                    final ocd.mcoptimizations.shapecast.IShapecaster shapecaster = this.world.createShapecaster(this, this.getBoundingBox().expand(d2, y, d4));;
+                     AxisAlignedBB axisalignedbb1 = this.getBoundingBox();
+                     AxisAlignedBB axisalignedbb2 = axisalignedbb1.expand(d2, 0.0D, d4);
+-                    double d9 = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, axisalignedbb2, reuseablestream1.func_212761_a(), y);
++                    final AxisAlignedBB bb = axisalignedbb1;
++                    double d9 = shapecaster.shapecast(axisalignedbb2, EnumFacing.Axis.Y, y, voxelShape -> !voxelShape.intersects(bb));
+ 
+                     if (d9 != 0.0D)
+                     {
+                         axisalignedbb1 = axisalignedbb1.offset(0.0D, d9, 0.0D);
+                     }
+ 
+-                    double d10 = VoxelShapes.func_212437_a(EnumFacing.Axis.X, axisalignedbb1, reuseablestream1.func_212761_a(), d2);
++                    double d10 = shapecaster.shapecast(axisalignedbb1, EnumFacing.Axis.X, d2);
+ 
+                     if (d10 != 0.0D)
+                     {
+                         axisalignedbb1 = axisalignedbb1.offset(d10, 0.0D, 0.0D);
+                     }
+ 
+-                    double d11 = VoxelShapes.func_212437_a(EnumFacing.Axis.Z, axisalignedbb1, reuseablestream1.func_212761_a(), d4);
++                    double d11 = shapecaster.shapecast(axisalignedbb1, EnumFacing.Axis.Z, d4);
+ 
+                     if (d11 != 0.0D)
+                     {
+@@ -789,21 +924,21 @@
+                     }
+ 
+                     AxisAlignedBB axisalignedbb3 = this.getBoundingBox();
+-                    double d12 = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, axisalignedbb3, reuseablestream1.func_212761_a(), y);
++                    double d12 = shapecaster.shapecast(axisalignedbb3, EnumFacing.Axis.Y, y);
+ 
+                     if (d12 != 0.0D)
+                     {
+                         axisalignedbb3 = axisalignedbb3.offset(0.0D, d12, 0.0D);
+                     }
+ 
+-                    double d13 = VoxelShapes.func_212437_a(EnumFacing.Axis.X, axisalignedbb3, reuseablestream1.func_212761_a(), d2);
++                    double d13 = shapecaster.shapecast(axisalignedbb3, EnumFacing.Axis.X, d2);
+ 
+                     if (d13 != 0.0D)
+                     {
+                         axisalignedbb3 = axisalignedbb3.offset(d13, 0.0D, 0.0D);
+                     }
+ 
+-                    double d14 = VoxelShapes.func_212437_a(EnumFacing.Axis.Z, axisalignedbb3, reuseablestream1.func_212761_a(), d4);
++                    double d14 = shapecaster.shapecast(axisalignedbb3, EnumFacing.Axis.Z, d4);
+ 
+                     if (d14 != 0.0D)
+                     {
+@@ -828,7 +963,7 @@
+                         this.setBoundingBox(axisalignedbb3);
+                     }
+ 
+-                    y = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, this.getBoundingBox(), reuseablestream1.func_212761_a(), y);
++                    y = shapecaster.shapecast(this.getBoundingBox(), EnumFacing.Axis.Y, y);
+ 
+                     if (y != 0.0D)
+                     {
