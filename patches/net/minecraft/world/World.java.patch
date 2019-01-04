@@ -1,0 +1,20 @@
+--- a/net/minecraft/world/World.java
++++ b/net/minecraft/world/World.java
+@@ -2288,6 +2288,17 @@
+         }
+     }
+ 
++    @Override
++    public ocd.mcoptimizations.shapecast.IShapecaster createShapecaster(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter)
++    {
++        final ocd.mcoptimizations.shapecast.IShapecaster shapecaster = IWorld.super.createShapecaster(entity, ignoredEntities, box, filter);
++
++        if (entity == null)
++            return shapecaster;
++
++        return ocd.mcoptimizations.shapecast.IShapecaster.combine(IEntityReader.super.createShapecaster(entity, ignoredEntities, box, filter), shapecaster);
++    }
++
+     public Stream<VoxelShape> func_212392_a(@Nullable Entity p_212392_1_, VoxelShape p_212392_2_, VoxelShape p_212392_3_, Set<Entity> p_212392_4_)
+     {
+         Stream<VoxelShape> stream = IWorld.super.func_212392_a(p_212392_1_, p_212392_2_, p_212392_3_, p_212392_4_);

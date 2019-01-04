@@ -1,0 +1,12 @@
+--- a/net/minecraft/util/math/shapes/IBooleanFunction.java
++++ b/net/minecraft/util/math/shapes/IBooleanFunction.java
+@@ -68,4 +68,9 @@
+     };
+ 
+     boolean apply(boolean p_apply_1_, boolean p_apply_2_);
++
++    default IBooleanFunction swapArgs()
++    {
++        return ocd.mcoptimizations.util.BooleanFunction.getSwappedFunction(this);
++    }
+ }

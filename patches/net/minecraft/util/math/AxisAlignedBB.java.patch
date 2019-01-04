@@ -1,0 +1,158 @@
+--- a/net/minecraft/util/math/AxisAlignedBB.java
++++ b/net/minecraft/util/math/AxisAlignedBB.java
+@@ -5,8 +5,16 @@
+ import net.minecraftforge.api.distmarker.Dist;
+ import net.minecraftforge.api.distmarker.OnlyIn;
+ 
+-public class AxisAlignedBB
++public class AxisAlignedBB extends net.minecraft.util.math.shapes.VoxelShape
+ {
++    private static final net.minecraft.util.math.shapes.VoxelShapePart shapePart;
++
++    static
++    {
++        shapePart = new net.minecraft.util.math.shapes.VoxelShapePartBitSet(1, 1, 1);
++        shapePart.setFilled(0, 0, 0, true, true);
++    }
++
+     public final double minX;
+     public final double minY;
+     public final double minZ;
+@@ -16,6 +24,7 @@
+ 
+     public AxisAlignedBB(double x1, double y1, double z1, double x2, double y2, double z2)
+     {
++        super(shapePart);
+         this.minX = Math.min(x1, x2);
+         this.minY = Math.min(y1, y2);
+         this.minZ = Math.min(z1, z2);
+@@ -402,4 +411,129 @@
+     {
+         return new Vec3d(this.minX + (this.maxX - this.minX) * 0.5D, this.minY + (this.maxY - this.minY) * 0.5D, this.minZ + (this.maxZ - this.minZ) * 0.5D);
+     }
++
++    @Override
++    public double getStart(final EnumFacing.Axis axis)
++    {
++        return this.getMin(axis);
++    }
++
++    @Override
++    public double getEnd(final EnumFacing.Axis axis)
++    {
++        return this.getMax(axis);
++    }
++
++    @Override
++    public AxisAlignedBB getBoundingBox()
++    {
++        return this;
++    }
++
++    @Override
++    protected it.unimi.dsi.fastutil.doubles.DoubleList getValues(final EnumFacing.Axis axis)
++    {
++        return it.unimi.dsi.fastutil.doubles.DoubleArrayList.wrap(new double[] {this.getMin(axis), this.getMax(axis)});
++    }
++
++    @Override
++    protected double getValueUnchecked(final EnumFacing.Axis axis, final int regionIndex)
++    {
++        if (regionIndex == 0)
++            return this.getMin(axis);
++        else if (regionIndex == 1)
++            return this.getMax(axis);
++        else
++            throw new IndexOutOfBoundsException("AABB voxel shape has no region with index " + regionIndex);
++    }
++
++    @Override
++    public boolean isEmpty()
++    {
++        return this.minX == this.maxX || this.minY == this.maxY || this.minZ == this.maxZ;
++    }
++
++    @Override
++    public net.minecraft.util.math.shapes.VoxelShape withOffset(final double xOffset, final double yOffset, final double zOffset)
++    {
++        return this.offset(xOffset, yOffset, zOffset);
++    }
++
++    @Override
++    protected int getClosestIndex(final EnumFacing.Axis axis, final double position)
++    {
++        return position < this.getMin(axis) ? -1 : position < this.getMax(axis) ? 0 : 1;
++    }
++
++    @Override
++    public double func_212430_a(final EnumFacing.Axis axis, AxisAlignedBB shape, final double maxDist)
++    {
++        if (Math.abs(maxDist) < 1E-7)
++            return 0.;
++
++        double d;
++
++        if (maxDist > 0.)
++        {
++            d = this.getMin(axis) - shape.getMax(axis);
++
++            if (d < -1E-7)
++                return maxDist;
++            else if (d < 1E-7)
++                return 0.;
++            else if (maxDist < d)
++                d = maxDist;
++        }
++        else
++        {
++            d = this.getMax(axis) - shape.getMin(axis);
++
++            if (d > 1E-7)
++                return maxDist;
++            else if (d > -1E-7)
++                return 0.;
++            else if (maxDist > d)
++                d = maxDist;
++        }
++
++        final net.minecraft.util.AxisRotation axisRotation = net.minecraft.util.AxisRotation.from(EnumFacing.Axis.X, axis);
++
++        final EnumFacing.Axis axis2 = axisRotation.rotate(EnumFacing.Axis.Y);
++        final EnumFacing.Axis axis3 = axisRotation.rotate(EnumFacing.Axis.Z);
++
++        return this.getMin(axis2) < shape.getMax(axis2) &&
++            shape.getMin(axis2) < this.getMax(axis2) &&
++            this.getMin(axis3) < shape.getMax(axis3) &&
++            shape.getMin(axis3) < this.getMax(axis3) ?
++            d : maxDist;
++    }
++
++    @Override
++    public boolean compare(final net.minecraft.util.math.shapes.VoxelShape shape, final net.minecraft.util.math.shapes.IBooleanFunction desc)
++    {
++        return shape.compare(this, desc.swapArgs());
++    }
++
++    @Override
++    public boolean compare(final AxisAlignedBB shape, final net.minecraft.util.math.shapes.IBooleanFunction desc)
++    {
++        if (desc.apply(false, false))
++            throw new IllegalArgumentException();
++
++        if (this.isEmpty())
++            return desc.apply(false, !shape.isEmpty());
++
++        if (shape.isEmpty())
++            return desc.apply(!this.isEmpty(), false);
++
++        return (desc.apply(true, true) && this.intersects(shape)) ||
++            (desc.apply(false, true) && (shape.minX < this.minX || shape.maxX > this.maxX || shape.minY < this.minY || shape.maxY > this.maxY || shape.minZ < this.minZ || shape.maxZ > this.maxZ)) ||
++            (desc.apply(true, false) && (this.minX < shape.minX || this.maxX > shape.maxX || this.minY < shape.minY || this.maxY > shape.maxY || this.minZ < shape.minZ || this.maxZ > shape.maxZ));
++    }
++
++    @Override
++    public boolean intersects(final net.minecraft.util.math.shapes.VoxelShape shape)
++    {
++        return shape.intersects(this);
++    }
+ }

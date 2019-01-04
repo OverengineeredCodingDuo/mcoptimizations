@@ -1,0 +1,48 @@
+--- a/net/minecraft/world/IEntityReader.java
++++ b/net/minecraft/world/IEntityReader.java
+@@ -21,8 +21,44 @@
+         return this.getEntitiesInAABBexcluding(entityIn, bb, EntitySelectors.NOT_SPECTATING);
+     }
+ 
+-default Stream<VoxelShape> getCollisionBoxes(@Nullable Entity entityIn, VoxelShape shape, Set<Entity> breakOnEntityCollide)
++    default ocd.mcoptimizations.shapecast.IShapecaster createShapecaster(@Nullable final Entity entity, final Set<Entity> ignoredEntities, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter)
+     {
++        return ocd.mcoptimizations.shapecast.CollectionShapecaster.create(getCollisionBoxes(entity, ignoredEntities, box, filter));
++    }
++
++    default java.util.Collection<VoxelShape> getCollisionBoxes(@Nullable final Entity entityIn, final Set<Entity> ignoredEntities, final AxisAlignedBB box, @Nullable final Predicate<VoxelShape> filter)
++    {
++        final List<Entity> entities = this.getEntitiesWithinAABBExcludingEntity(entityIn, box);
++
++        if (entities.isEmpty())
++            return java.util.Collections.emptyList();
++
++        final java.util.Collection<VoxelShape> coll = new java.util.ArrayList<>();
++
++        for (final Entity entity : entities)
++        {
++            if (!ignoredEntities.contains(entity) && (entityIn == null || !entityIn.isRidingSameEntity(entity)))
++            {
++                AxisAlignedBB bb = entity.getCollisionBoundingBox();
++
++                if (bb != null && (filter == null || filter.test(bb)))
++                    coll.add(bb);
++
++                if (entityIn != null)
++                {
++                    bb = entityIn.getCollisionBox(entity);
++
++                    if (bb != null && (filter == null || filter.test(bb)))
++                        coll.add(bb);
++                }
++            }
++        }
++
++        return coll;
++    }
++
++default Stream<VoxelShape> getCollisionBoxes(@Nullable final Entity entityIn, final VoxelShape shape, final Set<Entity> breakOnEntityCollide)
++    {
+         if (shape.isEmpty())
+         {
+             return Stream.<VoxelShape>empty();

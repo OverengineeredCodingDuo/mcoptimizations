@@ -1,0 +1,15 @@
+--- a/net/minecraft/util/math/shapes/VoxelShapes.java
++++ b/net/minecraft/util/math/shapes/VoxelShapes.java
+@@ -19,11 +19,7 @@
+ {
+     private static final VoxelShape EMPTY = new VoxelShapeArray(new VoxelShapePartBitSet(0, 0, 0), new DoubleArrayList(new double[] {0.0D}), new DoubleArrayList(new double[] {0.0D}), new DoubleArrayList(new double[] {0.0D}));
+     private static final VoxelShape FULL_CUBE = (VoxelShape)Util.make(() ->
+-    {
+-        VoxelShapePart voxelshapepart = new VoxelShapePartBitSet(1, 1, 1);
+-        voxelshapepart.setFilled(0, 0, 0, true, true);
+-        return new VoxelShapeCube(voxelshapepart);
+-    });
++        new AxisAlignedBB(0., 0., 0., 1., 1., 1.));
+ 
+     public static VoxelShape empty()
+     {
