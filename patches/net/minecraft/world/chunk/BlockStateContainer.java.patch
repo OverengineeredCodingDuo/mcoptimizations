@@ -1,0 +1,247 @@
+--- a/net/minecraft/world/chunk/BlockStateContainer.java
++++ b/net/minecraft/world/chunk/BlockStateContainer.java
+@@ -28,11 +28,47 @@
+     private final Function<NBTTagCompound, T> deserializer;
+     private final Function<T, NBTTagCompound> serializer;
+     private final T defaultState;
+-    protected BitArray storage;
+-    private IBlockStatePalette<T> palette;
+     private int bits;
+     private final ReentrantLock lock = new ReentrantLock();
++    protected volatile DataContainer<T> data;
++    protected DataContainer<T> tmpData;
++    private static final sun.misc.Unsafe UNSAFE;
+ 
++    static
++    {
++        sun.misc.Unsafe unsafe = null;
++
++        try
++        {
++            java.lang.reflect.Constructor<sun.misc.Unsafe> unsafeConstructor = sun.misc.Unsafe.class.getDeclaredConstructor();
++            unsafeConstructor.setAccessible(true);
++            unsafe = unsafeConstructor.newInstance();
++        }
++        catch (Exception e)
++        {
++        }
++
++        UNSAFE = unsafe;
++    }
++
++    protected static class DataContainer<T>
++    {
++        protected final BitArray storage;
++        private final IBlockStatePalette<T> palette;
++
++        public DataContainer(final BitArray storage, final IBlockStatePalette<T> palette)
++        {
++            this.storage = storage;
++            this.palette = palette;
++        }
++    }
++
++    private void swapData()
++    {
++        this.data = this.tmpData;
++        this.tmpData = null;
++    }
++
+     private void lock()
+     {
+         if (this.lock.isLocked() && !this.lock.isHeldByCurrentThread())
+@@ -65,6 +101,7 @@
+         this.serializer = p_i48961_4_;
+         this.defaultState = p_i48961_5_;
+         this.setBits(4);
++        this.swapData();
+     }
+ 
+     private static int getIndex(int x, int y, int z)
+@@ -74,36 +111,43 @@
+ 
+     private void setBits(int bitsIn)
+     {
+-        if (bitsIn != this.bits)
++        if (true)
+         {
++            final DataContainer<T> data = this.data;
++            final IBlockStatePalette<T> palette;
++
+             this.bits = bitsIn;
+ 
+             if (this.bits <= 4)
+             {
+                 this.bits = 4;
+-                this.palette = new BlockStatePaletteLinear<T>(this.registry, this.bits, this, this.deserializer);
++                palette = new BlockStatePaletteLinear<T>(this.registry, this.bits, this, this.deserializer);
+             }
+             else if (this.bits < 9)
+             {
+-                this.palette = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this, this.deserializer, this.serializer);
++                palette = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this, this.deserializer, this.serializer);
+             }
+             else
+             {
+-                this.palette = this.field_205521_b;
++                palette = this.field_205521_b;
+                 this.bits = MathHelper.log2DeBruijn(this.registry.size());
+             }
+ 
+-            this.palette.idFor(this.defaultState);
+-            this.storage = new BitArray(this.bits, 4096);
++            palette.idFor(this.defaultState);
++            final BitArray storage = new BitArray(this.bits, 4096);
++
++            this.tmpData = new DataContainer<>(storage, palette);
+         }
+     }
+ 
+     public int onResize(int p_onResize_1_, T p_onResize_2_)
+     {
+         this.lock();
+-        BitArray bitarray = this.storage;
+-        IBlockStatePalette<T> iblockstatepalette = this.palette;
++        final DataContainer<T> data = this.data;
++        BitArray bitarray = data.storage;
++        IBlockStatePalette<T> iblockstatepalette = data.palette;
+         this.setBits(p_onResize_1_);
++        final DataContainer<T> tmpData = this.tmpData;
+ 
+         for (int i = 0; i < bitarray.size(); ++i)
+         {
+@@ -111,11 +155,12 @@
+ 
+             if (t != null)
+             {
+-                this.set(i, t);
++                tmpData.storage.setAt(i, tmpData.palette.idFor(t));
+             }
+         }
+ 
+-        int j = this.palette.idFor(p_onResize_2_);
++        int j = tmpData.palette.idFor(p_onResize_2_);
++        this.swapData();
+         this.unlock();
+         return j;
+     }
+@@ -129,8 +174,13 @@
+ 
+     protected void set(int index, T state)
+     {
+-        int i = this.palette.idFor(state);
+-        this.storage.setAt(index, i);
++        final DataContainer<T> data = this.data;
++        int i = data.palette.idFor(state);
++
++        if (UNSAFE != null)
++            UNSAFE.storeFence();
++
++        data.storage.setAt(index, i);
+     }
+ 
+     public T get(int x, int y, int z)
+@@ -140,7 +190,13 @@
+ 
+     protected T get(int index)
+     {
+-        T t = this.palette.get(this.storage.getAt(index));
++        final DataContainer<T> data = this.data;
++        final int i = data.storage.getAt(index);
++
++        if (UNSAFE != null)
++            UNSAFE.loadFence();
++
++        T t = data.palette.get(i);
+         return (T)(t == null ? this.defaultState : t);
+     }
+ 
+@@ -150,22 +206,25 @@
+         this.lock();
+         int i = buf.readByte();
+ 
+-        if (this.bits != i)
++        if (true)
+         {
+             this.setBits(i);
+         }
+ 
+-        this.palette.read(buf);
+-        buf.readLongArray(this.storage.getBackingLongArray());
++        final DataContainer<T> tmpData = this.tmpData;
++        tmpData.palette.read(buf);
++        buf.readLongArray(tmpData.storage.getBackingLongArray());
++        this.swapData();
+         this.unlock();
+     }
+ 
+     public void write(PacketBuffer buf)
+     {
+         this.lock();
++        final DataContainer<T> data = this.data;
+         buf.writeByte(this.bits);
+-        this.palette.write(buf);
+-        buf.writeLongArray(this.storage.getBackingLongArray());
++        data.palette.write(buf);
++        buf.writeLongArray(data.storage.getBackingLongArray());
+         this.unlock();
+     }
+ 
+@@ -175,16 +234,17 @@
+         NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
+         int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
+ 
+-        if (i != this.bits)
++        if (true)
+         {
+             this.setBits(i);
+         }
+ 
+-        this.palette.read(nbttaglist);
++        final DataContainer<T> tmpData = this.tmpData;
++        tmpData.palette.read(nbttaglist);
+         long[] along = nbt.getLongArray(blockStatesKey);
+         int j = along.length * 64 / 4096;
+ 
+-        if (this.palette == this.field_205521_b)
++        if (tmpData.palette == this.field_205521_b)
+         {
+             IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
+             iblockstatepalette.read(nbttaglist);
+@@ -192,12 +252,12 @@
+ 
+             for (int k = 0; k < 4096; ++k)
+             {
+-                this.storage.setAt(k, this.field_205521_b.idFor(iblockstatepalette.get(bitarray.getAt(k))));
++                tmpData.storage.setAt(k, this.field_205521_b.idFor(iblockstatepalette.get(bitarray.getAt(k))));
+             }
+         }
+         else if (j == this.bits)
+         {
+-            System.arraycopy(along, 0, this.storage.getBackingLongArray(), 0, along.length);
++            System.arraycopy(along, 0, tmpData.storage.getBackingLongArray(), 0, along.length);
+         }
+         else
+         {
+@@ -205,10 +265,11 @@
+ 
+             for (int l = 0; l < 4096; ++l)
+             {
+-                this.storage.setAt(l, bitarray1.getAt(l));
++                tmpData.storage.setAt(l, bitarray1.getAt(l));
+             }
+         }
+ 
++        this.swapData();
+         this.unlock();
+     }
+ 
+@@ -241,6 +302,7 @@
+ 
+     public int getSerializedSize()
+     {
+-        return 1 + this.palette.getSerializedSize() + PacketBuffer.getVarIntSize(this.storage.size()) + this.storage.getBackingLongArray().length * 8;
++        final DataContainer<T> data = this.data;
++        return 1 + data.palette.getSerializedSize() + PacketBuffer.getVarIntSize(data.storage.size()) + data.storage.getBackingLongArray().length * 8;
+     }
+ }
