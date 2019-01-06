@@ -21,7 +21,7 @@
          return (VoxelShape)(this.isEmpty() ? VoxelShapes.empty() : new VoxelShapeArray(this.part, new OffsetDoubleList(this.getValues(EnumFacing.Axis.X), xOffset), new OffsetDoubleList(this.getValues(EnumFacing.Axis.Y), yOffset), new OffsetDoubleList(this.getValues(EnumFacing.Axis.Z), zOffset)));
      }
  
-@@ -283,4 +288,29 @@
+@@ -283,4 +288,59 @@
      {
          return this.isEmpty() ? "EMPTY" : "VoxelShape[" + this.getBoundingBox() + "]";
      }
@@ -43,7 +43,37 @@
 +
 +    public boolean intersects(final AxisAlignedBB shape)
 +    {
-+        return this.intersects(new ocd.mcoptimizations.voxel.VoxelShapeAABB(shape));
++        final int xMin = Math.max(0, this.getClosestIndex(EnumFacing.Axis.X, shape.minX + 1.0E-7D));
++        final int xMax = Math.min(this.part.getSize(EnumFacing.Axis.X), this.getClosestIndex(EnumFacing.Axis.X, shape.maxX - 1.0E-7D) + 1);
++
++        if (xMin >= xMax)
++            return false;
++
++        final int yMin = Math.max(0, this.getClosestIndex(EnumFacing.Axis.Y, shape.minY + 1.0E-7D));
++        final int yMax = Math.min(this.part.getSize(EnumFacing.Axis.Y), this.getClosestIndex(EnumFacing.Axis.Y, shape.maxY - 1.0E-7D) + 1);
++
++        if (yMin >= yMax)
++            return false;
++
++        final int zMin = Math.max(0, this.getClosestIndex(EnumFacing.Axis.Z, shape.minZ + 1.0E-7D));
++        final int zMax = Math.min(this.part.getSize(EnumFacing.Axis.Z), this.getClosestIndex(EnumFacing.Axis.Z, shape.maxZ - 1.0E-7D) + 1);
++
++        if (zMin >= zMax)
++            return false;
++
++        for (int x = xMin; x < xMax; ++x)
++        {
++            for (int y = yMin; y < yMax; ++y)
++            {
++                for (int z = zMin; z < zMax; ++z)
++                {
++                    if (this.part.contains(x, y, z))
++                        return true;
++                }
++            }
++        }
++
++        return false;
 +    }
 +
 +    public VoxelShape persistent()
