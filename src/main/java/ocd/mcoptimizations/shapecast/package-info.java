@@ -1,0 +1,6 @@
+@ParametersAreNonnullByDefault
+@MethodsReturnNonnullByDefault
+package ocd.mcoptimizations.shapecast;
+
+import mcp.MethodsReturnNonnullByDefault;
+import javax.annotation.ParametersAreNonnullByDefault;
