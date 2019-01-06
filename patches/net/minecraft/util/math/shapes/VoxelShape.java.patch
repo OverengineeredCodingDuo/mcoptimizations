@@ -9,7 +9,19 @@
      {
          this.part = part;
      }
-@@ -283,4 +283,24 @@
+@@ -62,6 +62,11 @@
+ 
+     public VoxelShape withOffset(double xOffset, double yOffset, double zOffset)
+     {
++        return this.offset(xOffset, yOffset, zOffset).persistent();
++    }
++
++    public VoxelShape offset(double xOffset, double yOffset, double zOffset)
++    {
+         return (VoxelShape)(this.isEmpty() ? VoxelShapes.empty() : new VoxelShapeArray(this.part, new OffsetDoubleList(this.getValues(EnumFacing.Axis.X), xOffset), new OffsetDoubleList(this.getValues(EnumFacing.Axis.Y), yOffset), new OffsetDoubleList(this.getValues(EnumFacing.Axis.Z), zOffset)));
+     }
+ 
+@@ -283,4 +288,29 @@
      {
          return this.isEmpty() ? "EMPTY" : "VoxelShape[" + this.getBoundingBox() + "]";
      }
@@ -21,7 +33,7 @@
 +
 +    public boolean compare(final AxisAlignedBB shape, final IBooleanFunction desc)
 +    {
-+        return this.compare((VoxelShape) shape, desc);
++        return this.compare(new ocd.mcoptimizations.voxel.VoxelShapeAABB(shape), desc);
 +    }
 +
 +    public boolean intersects(final VoxelShape shape)
@@ -31,6 +43,11 @@
 +
 +    public boolean intersects(final AxisAlignedBB shape)
 +    {
-+        return this.intersects((VoxelShape) shape);
++        return this.intersects(new ocd.mcoptimizations.voxel.VoxelShapeAABB(shape));
++    }
++
++    public VoxelShape persistent()
++    {
++        return this;
 +    }
  }

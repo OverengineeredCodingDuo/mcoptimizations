@@ -132,7 +132,7 @@
 +
 +                                if (!voxelshape.isEmpty())
 +                                {
-+                                    voxelshape = voxelshape.withOffset((double) x, (double) y, (double) z);
++                                    voxelshape = voxelshape.offset((double) x, (double) y, (double) z);
 +
 +                                    if ((filter == null || filter.test(voxelshape)) && consumer.test(voxelshape))
 +                                    {

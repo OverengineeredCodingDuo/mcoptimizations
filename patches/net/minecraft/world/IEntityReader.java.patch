@@ -1,6 +1,6 @@
 --- a/net/minecraft/world/IEntityReader.java
 +++ b/net/minecraft/world/IEntityReader.java
-@@ -21,8 +21,44 @@
+@@ -21,8 +21,54 @@
          return this.getEntitiesInAABBexcluding(entityIn, bb, EntitySelectors.NOT_SPECTATING);
      }
  
@@ -25,15 +25,25 @@
 +            {
 +                AxisAlignedBB bb = entity.getCollisionBoundingBox();
 +
-+                if (bb != null && (filter == null || filter.test(bb)))
-+                    coll.add(bb);
++                if (bb != null)
++                {
++                    final VoxelShape shape = new ocd.mcoptimizations.voxel.VoxelShapeAABB(bb);
++
++                    if (filter == null || filter.test(shape))
++                        coll.add(shape);
++                }
 +
 +                if (entityIn != null)
 +                {
-+                    bb = entityIn.getCollisionBox(entity);
++                    bb = entity.getCollisionBoundingBox();
 +
-+                    if (bb != null && (filter == null || filter.test(bb)))
-+                        coll.add(bb);
++                    if (bb != null)
++                    {
++                        final VoxelShape shape = new ocd.mcoptimizations.voxel.VoxelShapeAABB(bb);
++
++                        if (filter == null || filter.test(shape))
++                            coll.add(shape);
++                    }
 +                }
 +            }
 +        }

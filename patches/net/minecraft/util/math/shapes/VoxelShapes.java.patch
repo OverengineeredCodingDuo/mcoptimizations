@@ -1,15 +1,38 @@
 --- a/net/minecraft/util/math/shapes/VoxelShapes.java
 +++ b/net/minecraft/util/math/shapes/VoxelShapes.java
-@@ -19,11 +19,7 @@
+@@ -18,13 +18,20 @@
+ public final class VoxelShapes
  {
      private static final VoxelShape EMPTY = new VoxelShapeArray(new VoxelShapePartBitSet(0, 0, 0), new DoubleArrayList(new double[] {0.0D}), new DoubleArrayList(new double[] {0.0D}), new DoubleArrayList(new double[] {0.0D}));
-     private static final VoxelShape FULL_CUBE = (VoxelShape)Util.make(() ->
+-    private static final VoxelShape FULL_CUBE = (VoxelShape)Util.make(() ->
 -    {
 -        VoxelShapePart voxelshapepart = new VoxelShapePartBitSet(1, 1, 1);
 -        voxelshapepart.setFilled(0, 0, 0, true, true);
 -        return new VoxelShapeCube(voxelshapepart);
 -    });
-+        new AxisAlignedBB(0., 0., 0., 1., 1., 1.));
++    private static final VoxelShape FULL_CUBE = new ocd.mcoptimizations.voxel.VoxelShapeAABB(new AxisAlignedBB(0., 0., 0., 1., 1., 1.)) {
++        @Override
++        protected DoubleList getValues(final EnumFacing.Axis axis)
++        {
++            return new DoubleRangeList(1);
++        }
  
++        @Override
++        public VoxelShape persistent()
++        {
++            return this;
++        }
++    };
++
      public static VoxelShape empty()
      {
+         return EMPTY;
+@@ -81,7 +88,7 @@
+         }
+         else
+         {
+-            return new VoxelShapeArray(FULL_CUBE.part, new double[] {aabb.minX, aabb.maxX}, new double[] {aabb.minY, aabb.maxY}, new double[] {aabb.minZ, aabb.maxZ});
++            return new ocd.mcoptimizations.voxel.VoxelShapeAABB.Cached(aabb);
+         }
+     }
+ 
