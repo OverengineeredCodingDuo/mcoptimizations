@@ -35,7 +35,7 @@
 +
 +                if (entityIn != null)
 +                {
-+                    bb = entity.getCollisionBoundingBox();
++                    bb = entityIn.getCollisionBox(entity);
 +
 +                    if (bb != null)
 +                    {
