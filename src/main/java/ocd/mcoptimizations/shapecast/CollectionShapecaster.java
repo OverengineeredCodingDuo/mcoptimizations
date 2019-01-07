@@ -41,7 +41,13 @@ public class CollectionShapecaster implements IShapecaster
     @Override
     public boolean isEmpty()
     {
-        return this.shapes.isEmpty();
+        for (VoxelShape shape : this.shapes)
+        {
+            if (!shape.isEmpty())
+                return false;
+        }
+
+        return true;
     }
 
     @Override

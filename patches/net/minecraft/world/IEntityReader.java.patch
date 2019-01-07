@@ -29,7 +29,7 @@
 +                {
 +                    final VoxelShape shape = new ocd.mcoptimizations.voxel.VoxelShapeAABB(bb);
 +
-+                    if (filter == null || filter.test(shape))
++                    if (!shape.isEmpty() && (filter == null || filter.test(shape)))
 +                        coll.add(shape);
 +                }
 +
@@ -41,7 +41,7 @@
 +                    {
 +                        final VoxelShape shape = new ocd.mcoptimizations.voxel.VoxelShapeAABB(bb);
 +
-+                        if (filter == null || filter.test(shape))
++                        if (!shape.isEmpty() && (filter == null || filter.test(shape)))
 +                            coll.add(shape);
 +                    }
 +                }
