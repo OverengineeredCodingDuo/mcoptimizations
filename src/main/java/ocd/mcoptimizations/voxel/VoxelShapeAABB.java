@@ -66,7 +66,7 @@ public class VoxelShapeAABB extends VoxelShape
 
     public static boolean isEmpty(final AxisAlignedBB box)
     {
-        return box.minX == box.maxX || box.minY == box.maxY || box.minZ == box.maxZ;
+        return box.minX + 1E-7 > box.maxX || box.minY + 1E-7 > box.maxY || box.minZ + 1E-7 > box.maxZ;
     }
 
     @Override
@@ -99,6 +99,9 @@ public class VoxelShapeAABB extends VoxelShape
         if (Math.abs(maxDist) < 1E-7)
             return 0.;
 
+        if (this.isEmpty())
+            return maxDist;
+
         double d;
 
         axisRotation = axisRotation.reverse();
@@ -130,10 +133,10 @@ public class VoxelShapeAABB extends VoxelShape
         final Axis axis2 = axisRotation.rotate(Axis.Y);
         final Axis axis3 = axisRotation.rotate(Axis.Z);
 
-        return this.getStart(axis2) < shape.getMax(axis2) &&
-            shape.getMin(axis2) < this.getEnd(axis2) &&
-            this.getStart(axis3) < shape.getMax(axis3) &&
-            shape.getMin(axis3) < this.getEnd(axis3) ?
+        return this.getStart(axis2) + 1E-7 < shape.getMax(axis2) &&
+            shape.getMin(axis2) + 1E-7 < this.getEnd(axis2) &&
+            this.getStart(axis3) + 1E-7 < shape.getMax(axis3) &&
+            shape.getMin(axis3) + 1E-7 < this.getEnd(axis3) ?
             d : maxDist;
     }
 
@@ -156,8 +159,8 @@ public class VoxelShapeAABB extends VoxelShape
             return desc.apply(!this.isEmpty(), false);
 
         return (desc.apply(true, true) && this.intersects(shape)) ||
-            (desc.apply(false, true) && (shape.minX < this.box.minX || shape.maxX > this.box.maxX || shape.minY < this.box.minY || shape.maxY > this.box.maxY || shape.minZ < this.box.minZ || shape.maxZ > this.box.maxZ)) ||
-            (desc.apply(true, false) && (this.box.minX < shape.minX || this.box.maxX > shape.maxX || this.box.minY < shape.minY || this.box.maxY > shape.maxY || this.box.minZ < shape.minZ || this.box.maxZ > shape.maxZ));
+            (desc.apply(false, true) && (shape.minX + 1E-7 < this.box.minX || shape.maxX > this.box.maxX + 1E-7 || shape.minY + 1E-7 < this.box.minY || shape.maxY > this.box.maxY + 1E-7 || shape.minZ + 1E-7 < this.box.minZ || shape.maxZ > this.box.maxZ + 1E-7)) ||
+            (desc.apply(true, false) && (this.box.minX + 1E-7 < shape.minX || this.box.maxX > shape.maxX + 1E-7 || this.box.minY + 1E-7 < shape.minY || this.box.maxY > shape.maxY + 1E-7 || this.box.minZ + 1E-7 < shape.minZ || this.box.maxZ > shape.maxZ + 1E-7));
     }
 
     @Override
@@ -169,7 +172,7 @@ public class VoxelShapeAABB extends VoxelShape
     @Override
     public boolean intersects(final AxisAlignedBB shape)
     {
-        return this.box.intersects(shape);
+        return this.box.minX + 1E-7 < shape.maxX && this.box.maxX > shape.minX + 1E-7 && this.box.minY + 1E-7 < shape.maxY && this.box.maxY > shape.minY + 1E-7 && this.box.minZ + 1E-7 < shape.maxZ && this.box.maxZ > shape.minZ + 1E-7;
     }
 
     @Override
