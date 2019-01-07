@@ -21,27 +21,66 @@
          return (VoxelShape)(this.isEmpty() ? VoxelShapes.empty() : new VoxelShapeArray(this.part, new OffsetDoubleList(this.getValues(EnumFacing.Axis.X), xOffset), new OffsetDoubleList(this.getValues(EnumFacing.Axis.Y), yOffset), new OffsetDoubleList(this.getValues(EnumFacing.Axis.Z), zOffset)));
      }
  
-@@ -238,6 +243,9 @@
+@@ -218,10 +223,6 @@
+             EnumFacing.Axis enumfacing$axis = axisrotation.rotate(EnumFacing.Axis.X);
+             EnumFacing.Axis enumfacing$axis1 = axisrotation.rotate(EnumFacing.Axis.Y);
+             EnumFacing.Axis enumfacing$axis2 = axisrotation.rotate(EnumFacing.Axis.Z);
+-            double d0 = p_212431_2_.getMax(enumfacing$axis);
+-            double d1 = p_212431_2_.getMin(enumfacing$axis);
+-            int i = this.getClosestIndex(enumfacing$axis, d1 + 1.0E-7D);
+-            int j = this.getClosestIndex(enumfacing$axis, d0 - 1.0E-7D);
+             int k = Math.max(0, this.getClosestIndex(enumfacing$axis1, p_212431_2_.getMin(enumfacing$axis1) + 1.0E-7D));
+             int l = Math.min(this.part.getSize(enumfacing$axis1), this.getClosestIndex(enumfacing$axis1, p_212431_2_.getMax(enumfacing$axis1) - 1.0E-7D) + 1);
+             int i1 = Math.max(0, this.getClosestIndex(enumfacing$axis2, p_212431_2_.getMin(enumfacing$axis2) + 1.0E-7D));
+@@ -230,15 +231,22 @@
+ 
+             if (p_212431_3_ > 0.0D)
+             {
++                double d0 = p_212431_2_.getMax(enumfacing$axis);
++                int j = this.getClosestIndex(enumfacing$axis, d0 - 1.0E-7D);
+                 for (int l1 = j + 1; l1 < k1; ++l1)
+                 {
++                    double d2 = this.getValueUnchecked(enumfacing$axis, l1) - d0;
++                    if (d2 > p_212431_3_)
++                        return p_212431_3_;
++
+                     for (int i2 = k; i2 < l; ++i2)
+                     {
+                         for (int j2 = i1; j2 < j1; ++j2)
                          {
                              if (this.part.containsWithRotation(axisrotation, l1, i2, j2))
                              {
+-                                double d2 = this.getValueUnchecked(enumfacing$axis, l1) - d0;
 +                                if (l1 == j + 1 && l1 > this.part.getStart(enumfacing$axis) && this.part.containsWithRotation(axisrotation, l1 - 1, i2, j2)) // Ignore internal boundary
 +                                    continue;
-+
-                                 double d2 = this.getValueUnchecked(enumfacing$axis, l1) - d0;
  
                                  if (d2 >= -1.0E-7D)
-@@ -261,6 +269,9 @@
+                                 {
+@@ -253,15 +261,22 @@
+             }
+             else if (p_212431_3_ < 0.0D)
+             {
++                double d1 = p_212431_2_.getMin(enumfacing$axis);
++                int i = this.getClosestIndex(enumfacing$axis, d1 + 1.0E-7D);
+                 for (int k2 = i - 1; k2 >= 0; --k2)
+                 {
++                    double d3 = this.getValueUnchecked(enumfacing$axis, k2 + 1) - d1;
++                    if (d3 < p_212431_3_)
++                        return p_212431_3_;
++
+                     for (int l2 = k; l2 < l; ++l2)
+                     {
+                         for (int i3 = i1; i3 < j1; ++i3)
                          {
                              if (this.part.containsWithRotation(axisrotation, k2, l2, i3))
                              {
+-                                double d3 = this.getValueUnchecked(enumfacing$axis, k2 + 1) - d1;
 +                                if (k2 == i - 1 && k2 + 1 < this.part.getEnd(enumfacing$axis) && this.part.containsWithRotation(axisrotation, k2 + 1, l2, i3)) // Ignore internal boundary
 +                                    continue;
-+
-                                 double d3 = this.getValueUnchecked(enumfacing$axis, k2 + 1) - d1;
  
                                  if (d3 <= 1.0E-7D)
-@@ -283,4 +294,59 @@
+                                 {
+@@ -283,4 +298,59 @@
      {
          return this.isEmpty() ? "EMPTY" : "VoxelShape[" + this.getBoundingBox() + "]";
      }
