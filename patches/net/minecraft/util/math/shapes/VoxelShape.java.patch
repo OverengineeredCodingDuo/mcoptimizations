@@ -21,7 +21,27 @@
          return (VoxelShape)(this.isEmpty() ? VoxelShapes.empty() : new VoxelShapeArray(this.part, new OffsetDoubleList(this.getValues(EnumFacing.Axis.X), xOffset), new OffsetDoubleList(this.getValues(EnumFacing.Axis.Y), yOffset), new OffsetDoubleList(this.getValues(EnumFacing.Axis.Z), zOffset)));
      }
  
-@@ -283,4 +288,59 @@
+@@ -238,6 +243,9 @@
+                         {
+                             if (this.part.containsWithRotation(axisrotation, l1, i2, j2))
+                             {
++                                if (l1 == j + 1 && l1 > this.part.getStart(enumfacing$axis) && this.part.containsWithRotation(axisrotation, l1 - 1, i2, j2)) // Ignore internal boundary
++                                    continue;
++
+                                 double d2 = this.getValueUnchecked(enumfacing$axis, l1) - d0;
+ 
+                                 if (d2 >= -1.0E-7D)
+@@ -261,6 +269,9 @@
+                         {
+                             if (this.part.containsWithRotation(axisrotation, k2, l2, i3))
+                             {
++                                if (k2 == i - 1 && k2 + 1 < this.part.getEnd(enumfacing$axis) && this.part.containsWithRotation(axisrotation, k2 + 1, l2, i3)) // Ignore internal boundary
++                                    continue;
++
+                                 double d3 = this.getValueUnchecked(enumfacing$axis, k2 + 1) - d1;
+ 
+                                 if (d3 <= 1.0E-7D)
+@@ -283,4 +294,59 @@
      {
          return this.isEmpty() ? "EMPTY" : "VoxelShape[" + this.getBoundingBox() + "]";
      }

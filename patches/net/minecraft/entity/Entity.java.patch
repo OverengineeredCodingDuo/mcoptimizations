@@ -35,7 +35,7 @@
  
                      if (z != 0.0D)
                      {
-@@ -764,24 +768,25 @@
+@@ -764,24 +768,24 @@
  
                  if (d2 != 0.0D || y != 0.0D || d4 != 0.0D)
                  {
@@ -44,8 +44,7 @@
                      AxisAlignedBB axisalignedbb1 = this.getBoundingBox();
                      AxisAlignedBB axisalignedbb2 = axisalignedbb1.expand(d2, 0.0D, d4);
 -                    double d9 = VoxelShapes.func_212437_a(EnumFacing.Axis.Y, axisalignedbb2, reuseablestream1.func_212761_a(), y);
-+                    final AxisAlignedBB bb = axisalignedbb1;
-+                    double d9 = shapecaster.shapecast(axisalignedbb2, EnumFacing.Axis.Y, y, voxelShape -> !voxelShape.intersects(bb));
++                    double d9 = shapecaster.shapecast(axisalignedbb2, EnumFacing.Axis.Y, y);
  
                      if (d9 != 0.0D)
                      {
@@ -65,7 +64,7 @@
  
                      if (d11 != 0.0D)
                      {
-@@ -789,21 +794,21 @@
+@@ -789,21 +793,21 @@
                      }
  
                      AxisAlignedBB axisalignedbb3 = this.getBoundingBox();
@@ -90,7 +89,7 @@
  
                      if (d14 != 0.0D)
                      {
-@@ -828,7 +833,7 @@
+@@ -828,7 +832,7 @@
                          this.setBoundingBox(axisalignedbb3);
                      }
  
