@@ -94,7 +94,7 @@ public class VoxelShapeAABB extends VoxelShape
     }
 
     @Override
-    protected double func_212431_a(AxisRotation axisRotation, final AxisAlignedBB shape, double maxDist)
+    protected double func_212431_a(AxisRotation axisRotation, final AxisAlignedBB shape, final double maxDist)
     {
         if (Math.abs(maxDist) < 1E-7)
             return 0.;
@@ -111,23 +111,19 @@ public class VoxelShapeAABB extends VoxelShape
         {
             d = this.getStart(axis) - shape.getMax(axis);
 
-            if (d < -1E-7)
+            if (d < -1E-7 || maxDist < d)
                 return maxDist;
             else if (d < 1E-7)
-                return 0.;
-            else if (maxDist < d)
-                d = maxDist;
+                d = 0.;
         }
         else
         {
             d = this.getEnd(axis) - shape.getMin(axis);
 
-            if (d > 1E-7)
+            if (d > 1E-7 || maxDist > d)
                 return maxDist;
             else if (d > -1E-7)
-                return 0.;
-            else if (maxDist > d)
-                d = maxDist;
+                d = 0.;
         }
 
         final Axis axis2 = axisRotation.rotate(Axis.Y);
