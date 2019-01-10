@@ -1,0 +1,18 @@
+--- a/net/minecraft/world/chunk/BlockStatePaletteHashMap.java
++++ b/net/minecraft/world/chunk/BlockStatePaletteHashMap.java
+@@ -29,9 +29,14 @@
+         this.statePaletteMap = new IntIdentityHashBiMap<T>(1 << bitsIn);
+     }
+ 
++    public int getId(T state)
++    {
++        return this.statePaletteMap.getId(state);
++    }
++
+     public int idFor(T state)
+     {
+-        int i = this.statePaletteMap.getId(state);
++        int i = this.getId(state);
+ 
+         if (i == -1)
+         {

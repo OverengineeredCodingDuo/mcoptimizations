@@ -125,22 +125,29 @@
          this.unlock();
          return j;
      }
-@@ -129,8 +174,12 @@
+@@ -129,8 +174,19 @@
  
      protected void set(int index, T state)
      {
 -        int i = this.palette.idFor(state);
 -        this.storage.setAt(index, i);
-+        int i = this.data.palette.idFor(state);
++        DataContainer<T> data = this.data;
++        int i = data.palette.getId(state);
 +
-+        if (UNSAFE != null)
-+            UNSAFE.storeFence();
++        if (i == -1)
++        {
++            i = data.palette.idFor(state);
++            data = this.data;
 +
-+        this.data.storage.setAt(index, i);
++            if (UNSAFE != null)
++                UNSAFE.storeFence();
++        }
++
++        data.storage.setAt(index, i);
      }
  
      public T get(int x, int y, int z)
-@@ -140,7 +189,16 @@
+@@ -140,7 +196,16 @@
  
      protected T get(int index)
      {
@@ -158,7 +165,7 @@
          return (T)(t == null ? this.defaultState : t);
      }
  
-@@ -150,22 +208,25 @@
+@@ -150,22 +215,25 @@
          this.lock();
          int i = buf.readByte();
  
@@ -189,7 +196,7 @@
          this.unlock();
      }
  
-@@ -175,16 +236,17 @@
+@@ -175,16 +243,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -210,7 +217,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +254,12 @@
+@@ -192,12 +261,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -225,7 +232,7 @@
          }
          else
          {
-@@ -205,10 +267,11 @@
+@@ -205,10 +274,11 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -238,7 +245,7 @@
          this.unlock();
      }
  
-@@ -241,6 +304,7 @@
+@@ -241,6 +311,7 @@
  
      public int getSerializedSize()
      {
