@@ -1,0 +1,11 @@
+--- a/net/minecraft/util/BitArray.java
++++ b/net/minecraft/util/BitArray.java
+@@ -7,7 +7,7 @@
+ {
+     private final long[] longArray;
+     private final int bitsPerEntry;
+-    private final long maxEntryValue;
++    protected final long maxEntryValue;
+     private final int arraySize;
+ 
+     public BitArray(int bitsPerEntryIn, int arraySizeIn)

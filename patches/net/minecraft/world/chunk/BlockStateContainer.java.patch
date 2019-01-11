@@ -31,10 +31,10 @@
 +
 +    protected static class DataContainer<T>
 +    {
-+        protected final BitArray storage;
++        protected final ocd.concurrent.util.AtomicBitArray storage;
 +        private final IBlockStatePalette<T> palette;
 +
-+        public DataContainer(final BitArray storage, final IBlockStatePalette<T> palette)
++        public DataContainer(final ocd.concurrent.util.AtomicBitArray storage, final IBlockStatePalette<T> palette)
 +        {
 +            this.storage = storage;
 +            this.palette = palette;
@@ -91,7 +91,7 @@
 -            this.palette.idFor(this.defaultState);
 -            this.storage = new BitArray(this.bits, 4096);
 +            palette.idFor(this.defaultState);
-+            final BitArray storage = new BitArray(this.bits, 4096);
++            final ocd.concurrent.util.AtomicBitArray storage = new ocd.concurrent.util.AtomicBitArray(this.bits, 4096);
 +
 +            this.tmpData = new DataContainer<>(storage, palette);
          }
@@ -179,7 +179,7 @@
 -        buf.readLongArray(this.storage.getBackingLongArray());
 +        final DataContainer<T> tmpData = this.tmpData;
 +        tmpData.palette.read(buf);
-+        buf.readLongArray(tmpData.storage.getBackingLongArray());
++        tmpData.storage.read(buf);
 +        this.swapData();
          this.unlock();
      }
@@ -228,7 +228,7 @@
          else if (j == this.bits)
          {
 -            System.arraycopy(along, 0, this.storage.getBackingLongArray(), 0, along.length);
-+            System.arraycopy(along, 0, tmpData.storage.getBackingLongArray(), 0, along.length);
++            tmpData.storage.read(along);
          }
          else
          {
