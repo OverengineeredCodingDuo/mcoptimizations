@@ -8,7 +8,7 @@
 -    private IBlockStatePalette<T> palette;
      private int bits;
      private final ReentrantLock lock = new ReentrantLock();
-+    protected volatile DataContainer<T> data;
++    protected final java.util.concurrent.atomic.AtomicReference<DataContainer<T>> data = new java.util.concurrent.atomic.AtomicReference<>();
 +    protected DataContainer<T> tmpData;
 +    private static final sun.misc.Unsafe UNSAFE;
  
@@ -43,7 +43,7 @@
 +
 +    private void swapData()
 +    {
-+        this.data = this.tmpData;
++        this.data.lazySet(this.tmpData);
 +        this.tmpData = null;
 +    }
 +
@@ -65,7 +65,7 @@
 -        if (bitsIn != this.bits)
 +        if (true)
          {
-+            final DataContainer<T> data = this.data;
++            final DataContainer<T> data = this.data.get();
 +            final IBlockStatePalette<T> palette;
 +
              this.bits = bitsIn;
@@ -102,7 +102,7 @@
          this.lock();
 -        BitArray bitarray = this.storage;
 -        IBlockStatePalette<T> iblockstatepalette = this.palette;
-+        final DataContainer<T> data = this.data;
++        final DataContainer<T> data = this.data.get();
 +        BitArray bitarray = data.storage;
 +        IBlockStatePalette<T> iblockstatepalette = data.palette;
          this.setBits(p_onResize_1_);
@@ -131,13 +131,13 @@
      {
 -        int i = this.palette.idFor(state);
 -        this.storage.setAt(index, i);
-+        DataContainer<T> data = this.data;
++        DataContainer<T> data = this.data.get();
 +        int i = data.palette.getId(state);
 +
 +        if (i == -1)
 +        {
 +            i = data.palette.idFor(state);
-+            data = this.data;
++            data = this.data.get();
 +
 +            if (UNSAFE != null)
 +                UNSAFE.storeFence();
@@ -152,7 +152,7 @@
      protected T get(int index)
      {
 -        T t = this.palette.get(this.storage.getAt(index));
-+        final DataContainer<T> data = this.data;
++        final DataContainer<T> data = this.data.get();
 +        final int i = data.storage.getAt(index);
 +        T t = data.palette.get(i);
 +
@@ -187,7 +187,7 @@
      public void write(PacketBuffer buf)
      {
          this.lock();
-+        final DataContainer<T> data = this.data;
++        final DataContainer<T> data = this.data.get();
          buf.writeByte(this.bits);
 -        this.palette.write(buf);
 -        buf.writeLongArray(this.storage.getBackingLongArray());
@@ -250,7 +250,7 @@
      public int getSerializedSize()
      {
 -        return 1 + this.palette.getSerializedSize() + PacketBuffer.getVarIntSize(this.storage.size()) + this.storage.getBackingLongArray().length * 8;
-+        final DataContainer<T> data = this.data;
++        final DataContainer<T> data = this.data.get();
 +        return 1 + data.palette.getSerializedSize() + PacketBuffer.getVarIntSize(data.storage.size()) + data.storage.getBackingLongArray().length * 8;
      }
  }
