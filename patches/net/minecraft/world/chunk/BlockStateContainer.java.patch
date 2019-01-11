@@ -103,7 +103,7 @@
 -        BitArray bitarray = this.storage;
 -        IBlockStatePalette<T> iblockstatepalette = this.palette;
 +        final DataContainer<T> data = this.data.get();
-+        BitArray bitarray = data.storage;
++        ocd.concurrent.util.AtomicBitArray bitarray = data.storage;
 +        IBlockStatePalette<T> iblockstatepalette = data.palette;
          this.setBits(p_onResize_1_);
 +        final DataContainer<T> tmpData = this.tmpData;
@@ -192,7 +192,7 @@
 -        this.palette.write(buf);
 -        buf.writeLongArray(this.storage.getBackingLongArray());
 +        data.palette.write(buf);
-+        buf.writeLongArray(data.storage.getBackingLongArray());
++        buf.writeLongArray(data.storage.getSerializedLongArray());
          this.unlock();
      }
  
@@ -251,6 +251,6 @@
      {
 -        return 1 + this.palette.getSerializedSize() + PacketBuffer.getVarIntSize(this.storage.size()) + this.storage.getBackingLongArray().length * 8;
 +        final DataContainer<T> data = this.data.get();
-+        return 1 + data.palette.getSerializedSize() + PacketBuffer.getVarIntSize(data.storage.size()) + data.storage.getBackingLongArray().length * 8;
++        return 1 + data.palette.getSerializedSize() + PacketBuffer.getVarIntSize(data.storage.size()) + data.storage.serializedSize() * 8;
      }
  }
