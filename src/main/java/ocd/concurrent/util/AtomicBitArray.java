@@ -10,6 +10,13 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
+/**
+ * Thread-safe version of {@link BitArray}.
+ * This uses a different packing format than {@link BitArray} to make sure that each entry is contained inside a single long.
+ * This allows accessing the entry atomically.
+ * Reads and writes have the memory effects of volatile reads and writes respectively.
+ * In particular, all accesses together with all accesses of volatile variables have a coherent ordering among all threads.
+ */
 public class AtomicBitArray
 {
     private final AtomicLongArray data;
@@ -33,6 +40,10 @@ public class AtomicBitArray
         this.read(data);
     }
 
+    /**
+     * Sets the given value at the given index atomically.
+     * Has the memory effect of a volatile write.
+     */
     public void setAt(int index, int value)
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
@@ -41,6 +52,7 @@ public class AtomicBitArray
         final int i = index / this.entriesPerLong;
         final int shift = (index - i * this.entriesPerLong) * this.bitsPerEntry;
 
+        // Use CAS to set the entry atomically.
         long oldVal;
         do
         {
@@ -48,6 +60,10 @@ public class AtomicBitArray
         } while (!this.data.compareAndSet(i, oldVal, (oldVal & ~(this.maxEntryValue << shift)) | (((long) value) << shift)));
     }
 
+    /**
+     * Reads the value at the given index atomically.
+     * Has the memory effect of a volatile read.
+     */
     public int getAt(int index)
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
@@ -56,6 +72,10 @@ public class AtomicBitArray
         return (int) ((this.data.get(i) >>> shift) & this.maxEntryValue);
     }
 
+    /**
+     * Get a serialized long array for the data in the format specified by {@link BitArray}.
+     * The returned array is not a snapshot of the data, ie. if there are concurrent modifications, it is unspecified which of those are reflected in the returned array.
+     */
     public long[] getSerializedLongArray()
     {
         final BitArray bitArray = new BitArray(this.bitsPerEntry, this.arraySize);
@@ -66,6 +86,9 @@ public class AtomicBitArray
         return bitArray.getBackingLongArray();
     }
 
+    /**
+     * Get the size of a serialized long array for the data in the format specified by {@link BitArray}.
+     */
     public int serializedSize()
     {
         return MathHelper.roundUp(this.arraySize * this.bitsPerEntry, 64) / 64;
@@ -90,11 +113,17 @@ public class AtomicBitArray
             this.setAt(i, bitArray.getAt(i));
     }
 
+    /**
+     * Reads the data in the format specified by {@link BitArray}.
+     */
     public void read(final long[] data)
     {
         this.read(new BitArray(this.bitsPerEntry, this.arraySize, data));
     }
 
+    /**
+     * Reads the data in the format specified by {@link BitArray}.
+     */
     @OnlyIn(Dist.CLIENT)
     public synchronized void read(PacketBuffer buf)
     {

@@ -1,6 +1,31 @@
 --- a/net/minecraft/world/chunk/BlockStateContainer.java
 +++ b/net/minecraft/world/chunk/BlockStateContainer.java
-@@ -28,11 +28,29 @@
+@@ -17,6 +17,24 @@
+ import net.minecraftforge.api.distmarker.Dist;
+ import net.minecraftforge.api.distmarker.OnlyIn;
+ 
++/**
++ * Thread-safe version of BlockStateContainer.
++ * The main problems with the Vanilla implementation are that:
++ * <ul>
++ *     <li>{@link BitArray} does not support atomic reads because the data might be spread over multiple longs.
++ *     Also, long isn't guaranteed to be atomic in Java.
++ *     This causes a reader to observe non meaningful values if there is a concurrent writer modifying the same position.</li>
++ *     <li>{@link #onResize(int, Object)} replaces the storage and the palette with new instances and only afterwards copies over the data.
++ *     Moreover, the palette gets shuffled, so a reader might lookup ids using the wrong mappings.
++ *     This causes concurrent readers to observe non meaningful values for all positions.</li>
++ * </ul>
++ *
++ * This implementation has the memory effects of volatile reads and writes respectively.
++ * In particular, all accesses together with all accesses of volatile variables have a coherent ordering among all threads.
++ * However, a concurrent reader should not assume ANY memory consistentcy.
++ * A task that requires any sort of memory consistency should be synchronized by other means. Otherwise chances are high that there are errors even with sequential consistency.
++ * The only guarantee that should be used is atomicity, ie. reads always return meaningful values.
++ */
+ public class BlockStateContainer<T> implements IBlockStatePaletteResizer<T>
+ {
+     private final IBlockStatePalette<T> field_205521_b;
+@@ -28,11 +46,47 @@
      private final Function<NBTTagCompound, T> deserializer;
      private final Function<T, NBTTagCompound> serializer;
      private final T defaultState;
@@ -8,9 +33,22 @@
 -    private IBlockStatePalette<T> palette;
      private int bits;
      private final ReentrantLock lock = new ReentrantLock();
++    /*
++     * Storage array packed together with a consistent version of the palette.
++     * volatile semantics are needed to guarantee volatile semantics for getAt() and setAt().
++     * Also, the acquire-release semantics of volatile make sure that any modifications to the data are written before the container is swapped.
++     */
 +    protected volatile DataContainer<T> data;
++    /*
++     * New version of the data container created during resizing.
++     * It is important that the data is copied before replacing the instance of the container, so that readers will always see the fully-copied data.
++     */
 +    protected DataContainer<T> tmpData;
  
++    /**
++     * Container for a consistent pair of storage and palette.
++     * This is needed because the palette gets reshuffled upon resizing, so we need to make sure that a reader always consults a consistent storage-palette pair.
++     */
 +    protected static class DataContainer<T>
 +    {
 +        protected final ocd.concurrent.util.AtomicBitArray storage;
@@ -23,8 +61,13 @@
 +        }
 +    }
 +
++    /**
++     * Atomically swaps the storage-palette container.
++     * This is called after the new container is filled.
++     */
 +    private void swapData()
 +    {
++        // Acquire-release semantics of volatile make sure that the data is written to the container before swapping the instance.
 +        this.data = this.tmpData;
 +        this.tmpData = null;
 +    }
@@ -32,22 +75,21 @@
      private void lock()
      {
          if (this.lock.isLocked() && !this.lock.isHeldByCurrentThread())
-@@ -65,6 +83,7 @@
+@@ -65,6 +119,7 @@
          this.serializer = p_i48961_4_;
          this.defaultState = p_i48961_5_;
          this.setBits(4);
-+        this.swapData();
++        this.swapData(); // Set the data container.
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,36 +93,43 @@
+@@ -74,36 +129,44 @@
  
      private void setBits(int bitsIn)
      {
 -        if (bitsIn != this.bits)
-+        if (true)
++        if (true) // We want to use this method even when the bits don't change. Always create a new instance of the storage-palette container because the palette will be shuffled by the caller.
          {
-+            final DataContainer<T> data = this.data;
 +            final IBlockStatePalette<T> palette;
 +
              this.bits = bitsIn;
@@ -75,6 +117,7 @@
 +            palette.idFor(this.defaultState);
 +            final ocd.concurrent.util.AtomicBitArray storage = new ocd.concurrent.util.AtomicBitArray(this.bits, 4096);
 +
++            // Don't write directly to this.data, the caller will first copy over the relevant data.
 +            this.tmpData = new DataContainer<>(storage, palette);
          }
      }
@@ -88,11 +131,12 @@
 +        ocd.concurrent.util.AtomicBitArray bitarray = data.storage;
 +        IBlockStatePalette<T> iblockstatepalette = data.palette;
          this.setBits(p_onResize_1_);
++        // Write to a temporary container and only swap it once the data is filled in.
 +        final DataContainer<T> tmpData = this.tmpData;
  
          for (int i = 0; i < bitarray.size(); ++i)
          {
-@@ -111,11 +137,12 @@
+@@ -111,15 +174,20 @@
  
              if (t != null)
              {
@@ -103,52 +147,80 @@
  
 -        int j = this.palette.idFor(p_onResize_2_);
 +        int j = tmpData.palette.idFor(p_onResize_2_);
-+        this.swapData();
++        this.swapData(); // Swap the storage-palette container after copying the data.
          this.unlock();
          return j;
      }
-@@ -129,8 +156,8 @@
+ 
++    /**
++     * Sets the given state at the given position atomically.
++     * This has the memory effect of a volatile write.
++     */
+     public void set(int x, int y, int z, T state)
+     {
+         this.lock();
+@@ -129,10 +197,20 @@
  
      protected void set(int index, T state)
      {
 -        int i = this.palette.idFor(state);
 -        this.storage.setAt(index, i);
++        // This method is called inside a synchronized context. This makes sure that we write to the correct storage-palette container.
++        // This also takes care of IBlockStatePalette which does not support atomic writing but only atomic reading.
 +        int i = this.data.palette.idFor(state);
++        // AtomicBitArray.setAt() and AtomicBitArray.getAt() have the semantics of a volatile write and read respectively.
++        // Together with the volatile semantics of this.data, this gives the claimed volatile semantics for the whole operation.
++        // Also, in case a new mapping is added, the acquire-release semantics of volatile make sure that it is written before the corresponding id is written to the bitArray.
++        // Re-fetch this.data because it might have been changed due to resizing inside idFor().
 +        this.data.storage.setAt(index, i);
      }
  
++    /**
++     * Reads the state at the given position atomically.
++     * This has the memory effect of a volatile read.
++     */
      public T get(int x, int y, int z)
-@@ -140,7 +167,8 @@
+     {
+         return (T)this.get(getIndex(x, y, z));
+@@ -140,7 +218,13 @@
  
      protected T get(int index)
      {
 -        T t = this.palette.get(this.storage.getAt(index));
++        // Use a consistent storage-palette pair for both lookups.
 +        final DataContainer<T> data = this.data;
++        // Both the palette and bitArray read values atomically.
++        // AtomicBitArray.setAt() and AtomicBitArray.getAt() have the semantics of a volatile write and read respectively.
++        // Together with the volatile semantics of this.data, this gives the claimed volatile semantics for the whole operation.
++        // Also, the acquire-release semantics of volatile make sure that the id is read before the corresponding mapping. Hence the mapping will exist.
 +        T t = data.palette.get(data.storage.getAt(index));
          return (T)(t == null ? this.defaultState : t);
      }
  
-@@ -150,22 +178,25 @@
+@@ -150,22 +234,28 @@
          this.lock();
          int i = buf.readByte();
  
 -        if (this.bits != i)
-+        if (true)
++        if (true) // Always use a new container because the palette might be shuffled.
          {
              this.setBits(i);
          }
  
 -        this.palette.read(buf);
 -        buf.readLongArray(this.storage.getBackingLongArray());
++        // Write to a temporary container and only swap it once the data is filled in.
 +        final DataContainer<T> tmpData = this.tmpData;
 +        tmpData.palette.read(buf);
 +        tmpData.storage.read(buf);
-+        this.swapData();
++        this.swapData(); // Only swap the container after filling in all data.
          this.unlock();
      }
  
      public void write(PacketBuffer buf)
      {
++        // This does not require locking because the data is now thread-safe.
++        // However, without the lock, the bitArray should be serialized before the palette and an acquireFence should be inserted inbetween, in case a new mapping is added concurrently.
          this.lock();
 +        final DataContainer<T> data = this.data;
          buf.writeByte(this.bits);
@@ -159,17 +231,18 @@
          this.unlock();
      }
  
-@@ -175,16 +206,17 @@
+@@ -175,16 +265,18 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
 -        if (i != this.bits)
-+        if (true)
++        if (true) // Always use a new container because the palette might be shuffled.
          {
              this.setBits(i);
          }
  
 -        this.palette.read(nbttaglist);
++        // Write to a temporary container and only swap it once the data is filled in.
 +        final DataContainer<T> tmpData = this.tmpData;
 +        tmpData.palette.read(nbttaglist);
          long[] along = nbt.getLongArray(blockStatesKey);
@@ -180,7 +253,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +224,12 @@
+@@ -192,12 +284,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -195,7 +268,7 @@
          }
          else
          {
-@@ -205,10 +237,11 @@
+@@ -205,15 +297,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -204,11 +277,17 @@
              }
          }
  
-+        this.swapData();
++        this.swapData(); // Only swap the container after filling in all data.
          this.unlock();
      }
  
-@@ -241,6 +274,7 @@
+     public void writeChunkPalette(NBTTagCompound compound, String paletteName, String paletteDataName)
+     {
++        // This does not require locking because we are now thread-safe.
+         this.lock();
+         BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
+         blockstatepalettehashmap.idFor(this.defaultState);
+@@ -241,6 +335,7 @@
  
      public int getSerializedSize()
      {
