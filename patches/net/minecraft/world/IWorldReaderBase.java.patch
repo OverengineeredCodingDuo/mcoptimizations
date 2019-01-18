@@ -61,12 +61,12 @@
 +
 +                void setSearchBox(final AxisAlignedBB box)
 +                {
-+                    this.xMin = MathHelper.floor(box.minX);
-+                    this.xMax = MathHelper.ceil(box.maxX);
++                    this.xMin = MathHelper.floor(box.minX) - 1;
++                    this.xMax = MathHelper.ceil(box.maxX) + 1;
 +                    this.yMin = MathHelper.floor(box.minY) - 1;
-+                    this.yMax = MathHelper.ceil(box.maxY);
-+                    this.zMin = MathHelper.floor(box.minZ);
-+                    this.zMax = MathHelper.ceil(box.maxZ);
++                    this.yMax = MathHelper.ceil(box.maxY) + 1;
++                    this.zMin = MathHelper.floor(box.minZ) - 1;
++                    this.zMax = MathHelper.ceil(box.maxZ) + 1;
 +                }
 +            }
 +
