@@ -1,0 +1,14 @@
+--- a/net/minecraft/world/chunk/BlockStatePaletteRegistry.java
++++ b/net/minecraft/world/chunk/BlockStatePaletteRegistry.java
+@@ -17,6 +17,11 @@
+         this.defaultState = p_i48965_2_;
+     }
+ 
++    public int getId(T state)
++    {
++        return this.idFor(state);
++    }
++
+     public int idFor(T state)
+     {
+         int i = this.registry.get(state);

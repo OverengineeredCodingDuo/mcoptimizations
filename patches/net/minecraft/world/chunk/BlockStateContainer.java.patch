@@ -25,7 +25,7 @@
  public class BlockStateContainer<T> implements IBlockStatePaletteResizer<T>
  {
      private final IBlockStatePalette<T> field_205521_b;
-@@ -28,11 +46,47 @@
+@@ -28,11 +46,62 @@
      private final Function<NBTTagCompound, T> deserializer;
      private final Function<T, NBTTagCompound> serializer;
      private final T defaultState;
@@ -33,6 +33,21 @@
 -    private IBlockStatePalette<T> palette;
      private int bits;
      private final ReentrantLock lock = new ReentrantLock();
++    /*
++     * A shared write lock used by threads writing to this container.
++     * Despite its name, ReadWriteLock has (almost) the exact semantics we need.
++     * "Readers" correspond to writers that can work concurrently.
++     * "Writers" correspond to writers that do structural modifications, ie. which need to change this.data.
++     * The shared write lock makes sure that no structural modifications happen concurrently with other modifications, so that modifications are always written to the right data container.
++     * This lock is also used to guard modifications to the palette, as the palette does not support thread-safe writing.
++     *
++     * Note that ReadWriteLock only guarantees that modifications prior to releasing the write lock are visible to operations subsequent to acquiring a read lock.
++     * However, we also need the other direction, ie. modifications prior to releasing the read lock are visible to operations subsequent to acquiring the write lock.
++     * This ensures that all modifications are visible before the data container is copied over.
++     * ReentrantReadWriteLock doesn't officially provide this guarantee. However, looking at the implementation, it does indeed provide the guarantee through the CAS which has acquire-release semantics.
++     * Ideally, one should write a proper SharedWriteLock, similar to ReentrantReadWriteLock.
++     */
++    private final java.util.concurrent.locks.ReadWriteLock sharedLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
 +    /*
 +     * Storage array packed together with a consistent version of the palette.
 +     * volatile semantics are needed to guarantee volatile semantics for getAt() and setAt().
@@ -75,7 +90,21 @@
      private void lock()
      {
          if (this.lock.isLocked() && !this.lock.isHeldByCurrentThread())
-@@ -65,6 +119,7 @@
+@@ -49,11 +118,13 @@
+         else
+         {
+             this.lock.lock();
++            this.sharedLock.writeLock().lock();
+         }
+     }
+ 
+     private void unlock()
+     {
++        this.sharedLock.writeLock().unlock();
+         this.lock.unlock();
+     }
+ 
+@@ -65,6 +136,7 @@
          this.serializer = p_i48961_4_;
          this.defaultState = p_i48961_5_;
          this.setBits(4);
@@ -83,7 +112,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,36 +129,44 @@
+@@ -74,36 +146,44 @@
  
      private void setBits(int bitsIn)
      {
@@ -136,7 +165,7 @@
  
          for (int i = 0; i < bitarray.size(); ++i)
          {
-@@ -111,15 +174,20 @@
+@@ -111,15 +191,20 @@
  
              if (t != null)
              {
@@ -159,20 +188,40 @@
      public void set(int x, int y, int z, T state)
      {
          this.lock();
-@@ -129,10 +197,20 @@
+@@ -129,10 +214,40 @@
  
      protected void set(int index, T state)
      {
 -        int i = this.palette.idFor(state);
 -        this.storage.setAt(index, i);
-+        // This method is called inside a synchronized context. This makes sure that we write to the correct storage-palette container.
-+        // This also takes care of IBlockStatePalette which does not support atomic writing but only atomic reading.
-+        int i = this.data.palette.idFor(state);
++        // Make sure the container does not get replaced while we write to it.
++        this.sharedLock.readLock().lock();
++        // Only query an already existing mapping. Don't create a new mapping here, as writing to the palette isn't thread-safe.
++        int i = this.data.palette.getId(state);
++
++        // The mapping doesn't exist yet.
++        if (i == -1)
++        {
++            // Acquire exclusive access, so we can write to the palette.
++            // This waits until no other thread is writing, in case we need to resize and change the container.
++            // We need to acquire the exclusive lock here, even if the palette would support thread-safe writing.
++            // This is because we need to acquire the lock inside onResize() and upgrading from a shared lock to an exclusive lock isn't possible there.
++            // Just releasing the shared lock and not acquiring the exclusive lock is also not possible since in this case this.data might be replaced while we are writing to the palette.
++            this.sharedLock.readLock().unlock();
++            this.sharedLock.writeLock().lock();
++
++            // We can now write to the palette.
++            i = this.data.palette.idFor(state);
++
++            this.sharedLock.readLock().lock();
++            this.sharedLock.writeLock().unlock();
++        }
 +        // AtomicBitArray.setAt() and AtomicBitArray.getAt() have the semantics of a volatile write and read respectively.
 +        // Together with the volatile semantics of this.data, this gives the claimed volatile semantics for the whole operation.
 +        // Also, in case a new mapping is added, the acquire-release semantics of volatile make sure that it is written before the corresponding id is written to the bitArray.
 +        // Re-fetch this.data because it might have been changed due to resizing inside idFor().
 +        this.data.storage.setAt(index, i);
++        this.sharedLock.readLock().unlock();
      }
  
 +    /**
@@ -182,7 +231,7 @@
      public T get(int x, int y, int z)
      {
          return (T)this.get(getIndex(x, y, z));
-@@ -140,7 +218,13 @@
+@@ -140,7 +255,13 @@
  
      protected T get(int index)
      {
@@ -197,7 +246,7 @@
          return (T)(t == null ? this.defaultState : t);
      }
  
-@@ -150,22 +234,28 @@
+@@ -150,22 +271,28 @@
          this.lock();
          int i = buf.readByte();
  
@@ -231,7 +280,7 @@
          this.unlock();
      }
  
-@@ -175,16 +265,18 @@
+@@ -175,16 +302,18 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -253,7 +302,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +284,12 @@
+@@ -192,12 +321,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -268,7 +317,7 @@
          }
          else
          {
-@@ -205,15 +297,17 @@
+@@ -205,15 +334,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -287,7 +336,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -241,6 +335,7 @@
+@@ -241,6 +372,7 @@
  
      public int getSerializedSize()
      {
