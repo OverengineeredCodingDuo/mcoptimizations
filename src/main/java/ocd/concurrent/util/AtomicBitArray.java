@@ -50,7 +50,7 @@ public class AtomicBitArray
         Validate.inclusiveBetween(0, this.maxEntryValue, value);
 
         final int i = index / this.entriesPerLong;
-        final int shift = (index - i * this.entriesPerLong) * this.bitsPerEntry;
+        final int shift = (index % this.entriesPerLong) * this.bitsPerEntry;
 
         // Use CAS to set the entry atomically.
         long oldVal;
@@ -68,7 +68,7 @@ public class AtomicBitArray
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
         final int i = index / this.entriesPerLong;
-        final int shift = (index - i * this.entriesPerLong) * this.bitsPerEntry;
+        final int shift = (index % this.entriesPerLong) * this.bitsPerEntry;
         return (int) ((this.data.get(i) >>> shift) & this.maxEntryValue);
     }
 
