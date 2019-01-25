@@ -1,9 +1,10 @@
 --- a/net/minecraft/world/chunk/BlockStateContainer.java
 +++ b/net/minecraft/world/chunk/BlockStateContainer.java
-@@ -17,6 +17,24 @@
+@@ -17,7 +17,25 @@
  import net.minecraftforge.api.distmarker.Dist;
  import net.minecraftforge.api.distmarker.OnlyIn;
  
+-public class BlockStateContainer<T> implements IBlockStatePaletteResizer<T>
 +/**
 + * Thread-safe version of BlockStateContainer.
 + * The main problems with the Vanilla implementation are that:
@@ -16,16 +17,17 @@
 + *     This causes concurrent readers to observe non meaningful values for all positions.</li>
 + * </ul>
 + *
-+ * This implementation has the memory effects of volatile reads and writes respectively.
-+ * In particular, all accesses together with all accesses of volatile variables have a coherent ordering among all threads.
-+ * However, a concurrent reader should not assume ANY memory consistentcy.
++ * Convenience overloads are provided for the access modes defined in {@link ocd.concurrent.AccessMode}.
++ *
++ * A concurrent reader should not assume ANY memory consistency.
 + * A task that requires any sort of memory consistency should be synchronized by other means. Otherwise chances are high that there are errors even with sequential consistency.
 + * The only guarantee that should be used is atomicity, ie. reads always return meaningful values.
 + */
- public class BlockStateContainer<T> implements IBlockStatePaletteResizer<T>
++public class BlockStateContainer<T> implements IBlockStatePaletteResizer<T>, ocd.concurrent.util.AtomicObjectArray<T>
  {
      private final IBlockStatePalette<T> field_205521_b;
-@@ -28,11 +46,62 @@
+     private final IBlockStatePaletteResizer<T> field_205522_c = (p_205517_0_, p_205517_1_) ->
+@@ -28,11 +46,63 @@
      private final Function<NBTTagCompound, T> deserializer;
      private final Function<T, NBTTagCompound> serializer;
      private final T defaultState;
@@ -50,13 +52,14 @@
 +    private final java.util.concurrent.locks.ReadWriteLock sharedLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
 +    /*
 +     * Storage array packed together with a consistent version of the palette.
-+     * volatile semantics are needed to guarantee volatile semantics for getAt() and setAt().
++     * volatile semantics are needed to guarantee volatile semantics for get() and set().
 +     * Also, the acquire-release semantics of volatile make sure that any modifications to the data are written before the container is swapped.
 +     */
 +    protected volatile DataContainer<T> data;
 +    /*
 +     * New version of the data container created during resizing.
 +     * It is important that the data is copied before replacing the instance of the container, so that readers will always see the fully-copied data.
++     * Because we have EXCLUSIVE_READ_WRITE access to tmpData, we can use plain access modes.
 +     */
 +    protected DataContainer<T> tmpData;
  
@@ -90,7 +93,7 @@
      private void lock()
      {
          if (this.lock.isLocked() && !this.lock.isHeldByCurrentThread())
-@@ -49,11 +118,13 @@
+@@ -49,11 +119,13 @@
          else
          {
              this.lock.lock();
@@ -104,7 +107,7 @@
          this.lock.unlock();
      }
  
-@@ -65,6 +136,7 @@
+@@ -65,6 +137,7 @@
          this.serializer = p_i48961_4_;
          this.defaultState = p_i48961_5_;
          this.setBits(4);
@@ -112,7 +115,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,36 +146,44 @@
+@@ -74,65 +147,171 @@
  
      private void setBits(int bitsIn)
      {
@@ -165,12 +168,13 @@
  
          for (int i = 0; i < bitarray.size(); ++i)
          {
-@@ -111,15 +191,20 @@
+-            T t = iblockstatepalette.get(bitarray.getAt(i));
++            T t = iblockstatepalette.get(bitarray.getPlain(i));
  
              if (t != null)
              {
 -                this.set(i, t);
-+                tmpData.storage.setAt(i, tmpData.palette.idFor(t));
++                tmpData.storage.setPlain(i, tmpData.palette.idFor(t));
              }
          }
  
@@ -183,17 +187,43 @@
  
 +    /**
 +     * Sets the given state at the given position atomically.
-+     * This has the memory effect of a volatile write.
++     * This has the memory consistency guarantees of {@link ocd.concurrent.MemoryOrder#OPAQUE}.
 +     */
      public void set(int x, int y, int z, T state)
      {
          this.lock();
-@@ -129,10 +214,40 @@
+-        this.set(getIndex(x, y, z), state);
++        this.setOpaqueExclusive(getIndex(x, y, z), state);
+         this.unlock();
+     }
  
-     protected void set(int index, T state)
+-    protected void set(int index, T state)
++    @Override
++    public void setOpaque(int index, T state)
      {
 -        int i = this.palette.idFor(state);
 -        this.storage.setAt(index, i);
++        this.setShared(index, state, ocd.concurrent.MemoryOrder.OPAQUE);
+     }
+ 
++    @Override
++    public void setRelease(int index, T state)
++    {
++        this.setShared(index, state, ocd.concurrent.MemoryOrder.ACQ_REL);
++    }
++
++    @Override
++    public void setVolatile(int index, T state)
++    {
++        this.setShared(index, state, ocd.concurrent.MemoryOrder.VOLATILE);
++    }
++
++    @Override
++    public void setShared(int index, T state, int memoryOrder)
++    {
++        // We need acquire-release semantics to make sure that a new mapping is written before the corresponding id is written to the bitArray.
++        memoryOrder = ocd.concurrent.MemoryOrder.enforce(memoryOrder, ocd.concurrent.MemoryOrder.ACQ_REL);
++
 +        // Make sure the container does not get replaced while we write to it.
 +        this.sharedLock.readLock().lock();
 +        // Only query an already existing mapping. Don't create a new mapping here, as writing to the palette isn't thread-safe.
@@ -216,37 +246,116 @@
 +            this.sharedLock.readLock().lock();
 +            this.sharedLock.writeLock().unlock();
 +        }
-+        // AtomicBitArray.setAt() and AtomicBitArray.getAt() have the semantics of a volatile write and read respectively.
-+        // Together with the volatile semantics of this.data, this gives the claimed volatile semantics for the whole operation.
-+        // Also, in case a new mapping is added, the acquire-release semantics of volatile make sure that it is written before the corresponding id is written to the bitArray.
++        // storage.setShared() has the requested memory consistency guarantees.
++        // Together with the volatile semantics of this.data, this gives the desired memory consistency guarantees for the whole operation.
++        // Also, we enforced acquire-release semantics to make sure that a new mapping is written before the corresponding id is written to the bitArray.
 +        // Re-fetch this.data because it might have been changed due to resizing inside idFor().
-+        this.data.storage.setAt(index, i);
++        this.data.storage.setShared(index, i, memoryOrder);
 +        this.sharedLock.readLock().unlock();
-     }
- 
++    }
++
++    @Override
++    public void setExclusive(int index, T state, int memoryOrder)
++    {
++        // Enforce acquire-release semantics as required by setExclusive_().
++        this.setExclusive_(index, state, ocd.concurrent.MemoryOrder.getExclusiveWriteAccessMode(ocd.concurrent.MemoryOrder.enforce(memoryOrder, ocd.concurrent.MemoryOrder.ACQ_REL)));
++    }
++
++    @Override
++    public void setOpaqueExclusive(int index, T state)
++    {
++        this.setExclusive(index, state, ocd.concurrent.MemoryOrder.OPAQUE);
++    }
++
++    @Override
++    public void setReleaseExclusive(int index, T state)
++    {
++        this.setExclusive(index, state, ocd.concurrent.MemoryOrder.ACQ_REL);
++    }
++
++    @Override
++    public void setVolatileExclusive(int index, T state)
++    {
++        this.setExclusive(index, state, ocd.concurrent.MemoryOrder.VOLATILE);
++    }
++
++    @Override
++    public void setPlain(int index, T state)
++    {
++        this.setExclusive_(index, state, ocd.concurrent.AccessMode.Write.PLAIN);
++    }
++
++    // Requires that accessMode implies MemoryOrder.ACQ_REL, unless accessMode is PLAIN.
++    private void setExclusive_(int index, T state, int accessMode)
++    {
++        // We can elide locks because we are guaranteed exclusive write access.
++        int i = this.data.palette.idFor(state);
++        // Acquire-release semantics make sure that a new mapping is written before the corresponding id is written to the bitArray.
++        // This is not needed for PLAIN accessMode, as there are no concurrent readers and changes are required to be made visible by the outer synchronization mechanism.
++        this.data.storage.set(index, i, accessMode);
++    }
++
 +    /**
 +     * Reads the state at the given position atomically.
-+     * This has the memory effect of a volatile read.
++     * This has the memory consistency guarantees of {@link ocd.concurrent.MemoryOrder#OPAQUE}.
 +     */
      public T get(int x, int y, int z)
      {
          return (T)this.get(getIndex(x, y, z));
-@@ -140,7 +255,13 @@
+@@ -140,32 +319,80 @@
  
      protected T get(int index)
      {
 -        T t = this.palette.get(this.storage.getAt(index));
++        return this.getOpaque(index);
++    }
++
++    @Override
++    public T getShared(int index, int memoryOrder)
++    {
++        // We need acquire-release semantics to make sure that the id is read before the corresponding mapping.
++        memoryOrder = ocd.concurrent.MemoryOrder.enforce(memoryOrder, ocd.concurrent.MemoryOrder.ACQ_REL);
++
 +        // Use a consistent storage-palette pair for both lookups.
 +        final DataContainer<T> data = this.data;
 +        // Both the palette and bitArray read values atomically.
-+        // AtomicBitArray.setAt() and AtomicBitArray.getAt() have the semantics of a volatile write and read respectively.
-+        // Together with the volatile semantics of this.data, this gives the claimed volatile semantics for the whole operation.
-+        // Also, the acquire-release semantics of volatile make sure that the id is read before the corresponding mapping. Hence the mapping will exist.
-+        T t = data.palette.get(data.storage.getAt(index));
++        // storage.getShared() has the requested memory consistency guarantees.
++        // Together with the volatile semantics of this.data, this gives the desired memory consistency guarantees for the whole operation.
++        // Also, we enforced acquire-release semantics to make sure that the id is read before the corresponding mapping. This makes sure that a new mapping will be visible.
++        T t = data.palette.get(data.storage.getShared(index, memoryOrder));
          return (T)(t == null ? this.defaultState : t);
      }
  
-@@ -150,22 +271,28 @@
++    @Override
++    public T getVolatile(int index)
++    {
++        return this.getShared(index, ocd.concurrent.MemoryOrder.VOLATILE);
++    }
++
++    @Override
++    public T getAcquire(int index)
++    {
++        return this.getShared(index, ocd.concurrent.MemoryOrder.ACQ_REL);
++    }
++
++    @Override
++    public T getOpaque(int index)
++    {
++        return this.getShared(index, ocd.concurrent.MemoryOrder.OPAQUE);
++    }
++
++    @Override
++    public T getPlain(int index)
++    {
++        // We are guaranteed exclusive write access. Hence there are no concurrent writers.
++        // So, we don't need to fetch a consistent version of the data container and don't need acquire-release semantics to make sure a new mapping is visible.
++        T t = this.data.palette.get(this.data.storage.getPlain(index));
++        return (T)(t == null ? this.defaultState : t);
++    }
++
+     @OnlyIn(Dist.CLIENT)
+     public void read(PacketBuffer buf)
+     {
          this.lock();
          int i = buf.readByte();
  
@@ -280,7 +389,7 @@
          this.unlock();
      }
  
-@@ -175,16 +302,18 @@
+@@ -175,16 +402,18 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -302,12 +411,12 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +321,12 @@
+@@ -192,12 +421,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
 -                this.storage.setAt(k, this.field_205521_b.idFor(iblockstatepalette.get(bitarray.getAt(k))));
-+                tmpData.storage.setAt(k, this.field_205521_b.idFor(iblockstatepalette.get(bitarray.getAt(k))));
++                tmpData.storage.setPlain(k, this.field_205521_b.idFor(iblockstatepalette.get(bitarray.getAt(k))));
              }
          }
          else if (j == this.bits)
@@ -317,12 +426,12 @@
          }
          else
          {
-@@ -205,15 +334,17 @@
+@@ -205,15 +434,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
 -                this.storage.setAt(l, bitarray1.getAt(l));
-+                tmpData.storage.setAt(l, bitarray1.getAt(l));
++                tmpData.storage.setPlain(l, bitarray1.getAt(l));
              }
          }
  
@@ -336,7 +445,16 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -241,6 +372,7 @@
+@@ -221,7 +452,7 @@
+ 
+         for (int i = 0; i < 4096; ++i)
+         {
+-            aint[i] = blockstatepalettehashmap.idFor((T)this.get(i));
++            aint[i] = blockstatepalettehashmap.idFor((T)this.getOpaque(i));
+         }
+ 
+         NBTTagList nbttaglist = new NBTTagList();
+@@ -241,6 +472,7 @@
  
      public int getSerializedSize()
      {
