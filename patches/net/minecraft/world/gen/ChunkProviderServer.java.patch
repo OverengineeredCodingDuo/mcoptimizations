@@ -1,0 +1,81 @@
+--- a/net/minecraft/world/gen/ChunkProviderServer.java
++++ b/net/minecraft/world/gen/ChunkProviderServer.java
+@@ -41,7 +41,7 @@
+     private final IChunkGenerator<?> chunkGenerator;
+     private final IChunkLoader chunkLoader;
+     private final Long2ObjectMap<Chunk> loadedChunks = Long2ObjectMaps.<Chunk>synchronize(new ChunkCacheNeighborNotification(8192));
+-    private Chunk field_212472_f;
++    private final java.util.concurrent.atomic.AtomicReferenceArray<Chunk> chunkCache = new java.util.concurrent.atomic.AtomicReferenceArray<>(256);
+     private final ProtoChunkScheduler chunkScheduler;
+     private final TaskManager<ChunkPos, ChunkStatus, ChunkPrimer> taskManager;
+     private final WorldServer world;
+@@ -83,24 +83,29 @@
+         this.droppedChunks.remove(ChunkPos.asLong(p_212469_1_, p_212469_2_));
+     }
+ 
++    private static int getCacheIndex(int x, int z)
++    {
++        return ((x & 15) << 4) | (z & 15);
++    }
++
+     @Nullable
+     public Chunk getChunk(int x, int z, boolean p_186025_3_, boolean p_186025_4_)
+     {
+-        Chunk chunk;
++        Chunk chunk = this.chunkCache.get(getCacheIndex(x, z));
+ 
+-        synchronized (this.chunkLoader)
++        if (chunk != null && chunk.getPos().x == x && chunk.getPos().z == z)
+         {
+-            if (this.field_212472_f != null && this.field_212472_f.getPos().x == x && this.field_212472_f.getPos().z == z)
+-            {
+-                return this.field_212472_f;
+-            }
++            return chunk;
++        }
+ 
++        synchronized (this.chunkLoader)
++        {
+             long i = ChunkPos.asLong(x, z);
+             chunk = this.loadedChunks.get(i);
+ 
+             if (chunk != null)
+             {
+-                this.field_212472_f = chunk;
++                this.chunkCache.lazySet(getCacheIndex(x, z), chunk);
+                 return chunk;
+             }
+ 
+@@ -215,7 +220,7 @@
+             }
+ 
+             this.loadedChunks.put(k, chunk);
+-            this.field_212472_f = chunk;
++            this.chunkCache.lazySet(getCacheIndex(i, j), chunk);
+         }
+ 
+         this.field_212473_j.addScheduledTask(chunk::onLoad);
+@@ -309,7 +314,10 @@
+                             chunk.onUnload();
+                             this.saveChunkData(chunk);
+                             this.loadedChunks.remove(olong);
+-                            this.field_212472_f = null;
++                            final int cacheIndex = getCacheIndex(chunk.x, chunk.z);
++                            final Chunk cachedChunk = this.chunkCache.get(cacheIndex);
++                            if (cachedChunk == chunk)
++                                this.chunkCache.lazySet(cacheIndex, null);
+                             ++i;
+                         }
+                     }
+@@ -360,6 +368,11 @@
+ 
+     public boolean chunkExists(int x, int z)
+     {
++        Chunk chunk = this.chunkCache.get(getCacheIndex(x, z));
++
++        if (chunk != null && chunk.getPos().x == x && chunk.getPos().z == z)
++            return true;
++
+         return this.loadedChunks.containsKey(ChunkPos.asLong(x, z));
+     }
+ }
