@@ -27,7 +27,7 @@
  {
      private final IBlockStatePalette<T> field_205521_b;
      private final IBlockStatePaletteResizer<T> field_205522_c = (p_205517_0_, p_205517_1_) ->
-@@ -28,11 +46,68 @@
+@@ -28,11 +46,71 @@
      private final Function<NBTTagCompound, T> deserializer;
      private final Function<T, NBTTagCompound> serializer;
      private final T defaultState;
@@ -57,7 +57,8 @@
 +     */
 +    protected volatile ocd.concurrent.util.AtomicBitArray storage;
 +    private volatile IBlockStatePalette<T> palette;
-+    private volatile int version;
++    private volatile int versionStart;
++    private int versionEnd;
 +    /*
 +     * New version of the data container created during resizing.
 +     * It is important that the data is copied before replacing the instance of the container, so that readers will always see the fully-copied data.
@@ -89,16 +90,18 @@
 +    private void swapData()
 +    {
 +        // Acquire-release semantics of volatile make sure that the data is written to the container before swapping the instance.
-+        this.version = ocd.concurrent.util.VersionUtils.startModification(this.version);
++        this.versionStart = ocd.concurrent.util.VersionUtils.startModification(this.versionStart);
++        this.versionEnd = this.versionStart;
 +        this.storage = this.tmpStorage;
 +        this.palette = this.tmpPalette;
-+        this.version = ocd.concurrent.util.VersionUtils.endModification(this.version);
++        this.versionEnd = ocd.concurrent.util.VersionUtils.endModification(this.versionEnd);
++        this.versionStart = this.versionEnd;
 +    }
 +
      private void lock()
      {
          if (this.lock.isLocked() && !this.lock.isHeldByCurrentThread())
-@@ -49,11 +124,13 @@
+@@ -49,11 +127,13 @@
          else
          {
              this.lock.lock();
@@ -112,7 +115,7 @@
          this.lock.unlock();
      }
  
-@@ -64,7 +141,9 @@
+@@ -64,7 +144,9 @@
          this.deserializer = p_i48961_3_;
          this.serializer = p_i48961_4_;
          this.defaultState = p_i48961_5_;
@@ -122,7 +125,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,65 +153,168 @@
+@@ -74,65 +156,168 @@
  
      private void setBits(int bitsIn)
      {
@@ -304,7 +307,7 @@
      public T get(int x, int y, int z)
      {
          return (T)this.get(getIndex(x, y, z));
-@@ -140,7 +322,57 @@
+@@ -140,7 +325,57 @@
  
      protected T get(int index)
      {
@@ -324,11 +327,11 @@
 +        // Also, we enforced acquire-release semantics to make sure that the id is read before the corresponding mapping. This makes sure that a new mapping will be visible.
 +        while (true)
 +        {
-+            final int version = this.version;
++            final int version = this.versionStart;
 +            final int i = this.storage.getShared(index, ocd.concurrent.MemoryOrder.enforce(memoryOrder, ocd.concurrent.MemoryOrder.ACQ_REL));
 +            final IBlockStatePalette<T> palette = this.palette;
 +
-+            if (ocd.concurrent.util.VersionUtils.isConsistent(version, this.version))
++            if (ocd.concurrent.util.VersionUtils.isConsistent(version, this.versionEnd))
 +            {
 +                final T t = palette.get(i);
 +                return t == null ? this.defaultState : t;
@@ -363,7 +366,7 @@
          return (T)(t == null ? this.defaultState : t);
      }
  
-@@ -150,13 +382,15 @@
+@@ -150,13 +385,15 @@
          this.lock();
          int i = buf.readByte();
  
@@ -382,7 +385,7 @@
          this.unlock();
      }
  
-@@ -165,7 +399,7 @@
+@@ -165,7 +402,7 @@
          this.lock();
          buf.writeByte(this.bits);
          this.palette.write(buf);
@@ -391,7 +394,7 @@
          this.unlock();
      }
  
-@@ -175,16 +409,17 @@
+@@ -175,16 +412,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -412,7 +415,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +427,12 @@
+@@ -192,12 +430,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -427,7 +430,7 @@
          }
          else
          {
-@@ -205,15 +440,17 @@
+@@ -205,15 +443,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -446,7 +449,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -221,7 +458,7 @@
+@@ -221,7 +461,7 @@
  
          for (int i = 0; i < 4096; ++i)
          {
@@ -455,7 +458,7 @@
          }
  
          NBTTagList nbttaglist = new NBTTagList();
-@@ -241,6 +478,6 @@
+@@ -241,6 +481,6 @@
  
      public int getSerializedSize()
      {
