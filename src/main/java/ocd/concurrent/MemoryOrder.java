@@ -5,6 +5,26 @@ package ocd.concurrent;
  * These memory orders are important to make sure that concurrent threads see a coherent history of data.
  * In order to achieve the desired memory consistency guarantee, both writer and reader must use it (or a stronger one).
  * Weaker memory orderings might be more efficient, depending on the CPU and the atomic data structure in question.
+ *
+ * There are two primary effects that can lead to weaker memory orderings being more efficient:
+ * <ul>
+ *     <li>
+ *         CPUs might implement weaker memory orderings more efficiently. However, many modern processors guarantee volatile reads and release stores for free.
+ *         Volatile stores however are usually more expensive.
+ *     </li>
+ *     <li>
+ *         Weaker memory orderings can allow compilers/JIT to reorder memory accesses around the method call.
+ *         However, for complex data structures it can be expected that such optimizations won't be employed.
+ *         Furthermore, implementations for complex data structures might enforce acquire-release semantics anyway.
+ *     </li>
+ * </ul>
+ *
+ * In summary, the following fallbacks can usually be expected to be cheap/free:
+ * <ul>
+ *     <li>Acquire reads can fallback to volatile reads.</li>
+ *     <li>For complex data structures, {@link #OPAQUE} can fallback to {@link #ACQ_REL}.</li>
+ * </ul>
+ *
  * Callers should aim for the weakest possible memory ordering.
  * These memory orders correspond to the modes provided with VarHandle, introduced in Java 9.
  *

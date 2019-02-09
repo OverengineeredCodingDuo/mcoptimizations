@@ -115,7 +115,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,65 +147,171 @@
+@@ -74,98 +147,214 @@
  
      private void setBits(int bitsIn)
      {
@@ -199,19 +199,13 @@
  
 -    protected void set(int index, T state)
 +    @Override
-+    public void setOpaque(int index, T state)
++    public void setRelease(int index, T state)
      {
 -        int i = this.palette.idFor(state);
 -        this.storage.setAt(index, i);
-+        this.setShared(index, state, ocd.concurrent.MemoryOrder.OPAQUE);
++        this.setShared(index, state, ocd.concurrent.MemoryOrder.ACQ_REL);
      }
  
-+    @Override
-+    public void setRelease(int index, T state)
-+    {
-+        this.setShared(index, state, ocd.concurrent.MemoryOrder.ACQ_REL);
-+    }
-+
 +    @Override
 +    public void setVolatile(int index, T state)
 +    {
@@ -262,12 +256,6 @@
 +    }
 +
 +    @Override
-+    public void setOpaqueExclusive(int index, T state)
-+    {
-+        this.setExclusive(index, state, ocd.concurrent.MemoryOrder.OPAQUE);
-+    }
-+
-+    @Override
 +    public void setReleaseExclusive(int index, T state)
 +    {
 +        this.setExclusive(index, state, ocd.concurrent.MemoryOrder.ACQ_REL);
@@ -302,48 +290,23 @@
      public T get(int x, int y, int z)
      {
          return (T)this.get(getIndex(x, y, z));
-@@ -140,32 +319,80 @@
+     }
  
-     protected T get(int index)
+-    protected T get(int index)
++    @Override
++    public T getVolatile(int index)
      {
 -        T t = this.palette.get(this.storage.getAt(index));
-+        return this.getOpaque(index);
-+    }
-+
-+    @Override
-+    public T getShared(int index, int memoryOrder)
-+    {
-+        // We need acquire-release semantics to make sure that the id is read before the corresponding mapping.
-+        memoryOrder = ocd.concurrent.MemoryOrder.enforce(memoryOrder, ocd.concurrent.MemoryOrder.ACQ_REL);
-+
 +        // Use a consistent storage-palette pair for both lookups.
 +        final DataContainer<T> data = this.data;
 +        // Both the palette and bitArray read values atomically.
-+        // storage.getShared() has the requested memory consistency guarantees.
++        // storage.getVolatile() has volatile memory consistency guarantees.
 +        // Together with the volatile semantics of this.data, this gives the desired memory consistency guarantees for the whole operation.
-+        // Also, we enforced acquire-release semantics to make sure that the id is read before the corresponding mapping. This makes sure that a new mapping will be visible.
-+        T t = data.palette.get(data.storage.getShared(index, memoryOrder));
++        // Also, acquire-release semantics make sure that the id is read before the corresponding mapping. This makes sure that a new mapping will be visible.
++        T t = data.palette.get(data.storage.getVolatile(index));
          return (T)(t == null ? this.defaultState : t);
      }
  
-+    @Override
-+    public T getVolatile(int index)
-+    {
-+        return this.getShared(index, ocd.concurrent.MemoryOrder.VOLATILE);
-+    }
-+
-+    @Override
-+    public T getAcquire(int index)
-+    {
-+        return this.getShared(index, ocd.concurrent.MemoryOrder.ACQ_REL);
-+    }
-+
-+    @Override
-+    public T getOpaque(int index)
-+    {
-+        return this.getShared(index, ocd.concurrent.MemoryOrder.OPAQUE);
-+    }
-+
 +    @Override
 +    public T getPlain(int index)
 +    {
@@ -389,7 +352,7 @@
          this.unlock();
      }
  
-@@ -175,16 +402,18 @@
+@@ -175,16 +364,18 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -411,7 +374,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +421,12 @@
+@@ -192,12 +383,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -426,7 +389,7 @@
          }
          else
          {
-@@ -205,15 +434,17 @@
+@@ -205,15 +396,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -445,7 +408,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -221,7 +452,7 @@
+@@ -221,7 +414,7 @@
  
          for (int i = 0; i < 4096; ++i)
          {
@@ -454,7 +417,7 @@
          }
  
          NBTTagList nbttaglist = new NBTTagList();
-@@ -241,6 +472,7 @@
+@@ -241,6 +434,7 @@
  
      public int getSerializedSize()
      {

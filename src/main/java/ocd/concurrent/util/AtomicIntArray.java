@@ -12,6 +12,14 @@ import ocd.concurrent.MemoryOrder;
 public interface AtomicIntArray
 {
     /**
+     * Alias for {@link #getOpaque(int)}.
+     */
+    default int get(int index)
+    {
+        return this.getOpaque(index);
+    }
+
+    /**
      * Atomically gets the value at the specified index.
      * This has the memory consistency guarantees defined by {@link AccessMode.Read#VOLATILE}.
      * This does not require any exclusivity guarantees from the caller.
@@ -23,20 +31,37 @@ public interface AtomicIntArray
      * This has the memory consistency guarantees defined by {@link AccessMode.Read#ACQUIRE}.
      * This does not require any exclusivity guarantees from the caller.
      */
-    int getAcquire(int index);
+    default int getAcquire(int index)
+    {
+        return this.getVolatile(index);
+    }
 
     /**
      * Atomically gets the value at the specified index.
      * This has the memory consistency guarantees defined by {@link AccessMode.Read#OPAQUE}.
      * This does not require any exclusivity guarantees from the caller.
      */
-    int getOpaque(int index);
+    default int getOpaque(int index)
+    {
+        return this.getAcquire(index);
+    }
 
     /**
      * Atomically gets the value at the specified index.
      * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.Read#PLAIN}.
      */
-    int getPlain(int index);
+    default int getPlain(int index)
+    {
+        return this.getOpaque(index);
+    }
+
+    /**
+     * Alias for {@link #setOpaque(int, int)}.
+     */
+    default void set(int index, int value)
+    {
+        this.setOpaque(index, value);
+    }
 
     /**
      * Atomically sets the given value at the specified index.
@@ -57,7 +82,18 @@ public interface AtomicIntArray
      * This has the memory consistency guarantees defined by {@link AccessMode.Write#OPAQUE}.
      * This does not require any exclusivity guarantees from the caller.
      */
-    void setOpaque(int index, int value);
+    default void setOpaque(int index, int value)
+    {
+        this.setRelease(index, value);
+    }
+
+    /**
+     * Alias for {@link #setOpaqueExclusive(int, int)}.
+     */
+    default void setExclusive(int index, int value)
+    {
+        this.setOpaqueExclusive(index, value);
+    }
 
     /**
      * Atomically sets the given value at the specified index.
@@ -75,7 +111,10 @@ public interface AtomicIntArray
      * Atomically sets the given value at the specified index.
      * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.Write#OPAQUE_EXCLUSIVE}.
      */
-    void setOpaqueExclusive(int index, int value);
+    default void setOpaqueExclusive(int index, int value)
+    {
+        this.setReleaseExclusive(index, value);
+    }
 
     /**
      * Atomically sets the given value at the specified index.

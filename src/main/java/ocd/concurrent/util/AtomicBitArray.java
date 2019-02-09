@@ -41,12 +41,14 @@ public class AtomicBitArray implements AtomicIntArray
         boolean compareAndSet(AtomicLongArray data, int index, long expectedValue, long newValue);
     }
 
+    // Placeholder for Java 9, which actually provides weaker access modes.
     @Override
     public void setOpaque(int index, int value)
     {
         this.setShared(index, value, AtomicLongArray::weakCompareAndSet);
     }
 
+    // Placeholder for Java 9, which actually provides weaker access modes.
     @Override
     public void setRelease(int index, int value)
     {
@@ -80,12 +82,14 @@ public class AtomicBitArray implements AtomicIntArray
         void set(AtomicLongArray data, int index, long val);
     }
 
+    // Placeholder for Java 9, which actually provides weaker access modes.
     @Override
     public void setPlain(int index, int value)
     {
         this.setExclusive(index, value, AtomicLongArray::lazySet);
     }
 
+    // Placeholder for Java 9, which actually provides weaker access modes.
     @Override
     public void setOpaqueExclusive(int index, int value)
     {
@@ -123,20 +127,16 @@ public class AtomicBitArray implements AtomicIntArray
         long get(AtomicLongArray data, int index);
     }
 
+    // Placeholder for Java 9, which actually provides weaker access modes.
     @Override
     public int getPlain(int index)
     {
         return this.get(index, AtomicLongArray::get);
     }
 
+    // Placeholder for Java 9, which actually provides weaker access modes.
     @Override
     public int getOpaque(int index)
-    {
-        return this.get(index, AtomicLongArray::get);
-    }
-
-    @Override
-    public int getAcquire(int index)
     {
         return this.get(index, AtomicLongArray::get);
     }
