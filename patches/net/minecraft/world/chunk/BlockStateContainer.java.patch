@@ -137,7 +137,7 @@
 -            this.palette.idFor(this.defaultState);
 -            this.storage = new BitArray(this.bits, 4096);
 +            this.tmpPalette.idFor(this.defaultState);
-+            this.tmpStorage = new ocd.concurrent.util.AtomicBitArray(this.bits, 4096);
++            this.tmpStorage = new ocd.concurrent.util.SectionBitArray(this.bits);
          }
      }
  

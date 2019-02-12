@@ -22,9 +22,9 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 public class AtomicBitArray implements AtomicIntArray
 {
     private final AtomicLongArray data;
-    private final int bitsPerEntry;
-    private final int entriesPerLong;
-    private final long maxEntryValue;
+    protected final int bitsPerEntry;
+    protected final int entriesPerLong;
+    protected final long maxEntryValue;
     private final int arraySize;
 
     public AtomicBitArray(int bitsPerEntryIn, int arraySizeIn)
@@ -34,6 +34,40 @@ public class AtomicBitArray implements AtomicIntArray
         this.arraySize = arraySizeIn;
         this.maxEntryValue = (1L << bitsPerEntryIn) - 1;
         this.data = new AtomicLongArray(MathHelper.roundUp(arraySizeIn, this.entriesPerLong) / this.entriesPerLong);
+    }
+
+    /**
+     * Returns the index with respect to {@link #data} where the entry at the given <code>index</code> is located.
+     * This can be overridden by subclasses to give more efficient implementations.
+     */
+    protected int getIndex(final int index)
+    {
+        return getIndex(index, this.entriesPerLong);
+    }
+
+    /**
+     * Standard implementation for {@link #getIndex(int)}
+     */
+    protected static int getIndex(final int index, final int entriesPerLong)
+    {
+        return index / entriesPerLong;
+    }
+
+    /**
+     * Returns the number of bits which the entry at the given <code>index</code> is shifted with respect to the containing long inside {@link #data}.
+     * This can be overridden by subclasses to give more efficient implementations.
+     */
+    protected int getShift(final int index)
+    {
+        return getShift(index, this.bitsPerEntry, this.entriesPerLong);
+    }
+
+    /**
+     * Standard implementation for {@link #getShift(int)}}
+     */
+    protected static int getShift(final int index, final int bitsPerEntry, final int entriesPerLong)
+    {
+        return (index % entriesPerLong) * bitsPerEntry;
     }
 
     private interface CASOperation
@@ -66,8 +100,8 @@ public class AtomicBitArray implements AtomicIntArray
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
         Validate.inclusiveBetween(0, this.maxEntryValue, value);
 
-        final int i = index / this.entriesPerLong;
-        final int shift = (index % this.entriesPerLong) * this.bitsPerEntry;
+        final int i = this.getIndex(index);
+        final int shift = this.getShift(index);
 
         // Use CAS to set the entry atomically.
         long oldVal;
@@ -113,8 +147,8 @@ public class AtomicBitArray implements AtomicIntArray
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
         Validate.inclusiveBetween(0, this.maxEntryValue, value);
 
-        final int i = index / this.entriesPerLong;
-        final int shift = (index % this.entriesPerLong) * this.bitsPerEntry;
+        final int i = this.getIndex(index);
+        final int shift = this.getShift(index);
 
         // We are guaranteed exclusive write access. Hence we can use ordinary writes instead of CAS.
         long oldVal = this.data.get(i);
@@ -150,9 +184,7 @@ public class AtomicBitArray implements AtomicIntArray
     private int get(final int index, final GetOperation operation)
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
-        final int i = index / this.entriesPerLong;
-        final int shift = (index % this.entriesPerLong) * this.bitsPerEntry;
-        return (int) ((operation.get(this.data, i) >>> shift) & this.maxEntryValue);
+        return (int) ((operation.get(this.data, this.getIndex(index)) >>> this.getShift(index)) & this.maxEntryValue);
     }
 
     /**
