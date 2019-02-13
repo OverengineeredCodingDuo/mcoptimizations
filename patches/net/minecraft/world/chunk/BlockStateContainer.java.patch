@@ -106,7 +106,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,73 +138,189 @@
+@@ -74,73 +138,190 @@
  
      private void setBits(int bitsIn)
      {
@@ -289,10 +289,11 @@
 +            // storage.getVolatile() has volatile memory consistency guarantees.
 +            // Together with the volatile semantics of this.storage, this gives the desired memory consistency guarantees for the whole operation.
 +            // Also, acquire-release semantics make sure that the id is read before the corresponding mapping. This makes sure that a new mapping will be visible.
-+            // Fetching the id on the fly, rather than first fetching the storage-palette pair, turns out to be more efficient.
++            // Fetching the id on the fly, rather than first fetching the storage-palette pair, turns out to be more efficient, as suggested by VersionUtils.
 +            final int id = this.storage.getVolatile(index);
 +            final IBlockStatePalette<T> palette = this.palette;
 +
++            // Check for consistency directly after fetching all the data, as suggested by VersionUtils.
 +            if (ocd.concurrent.util.VersionUtils.isConsistent(version, this.version))
 +            {
 +                // We have fetched a consistent storage-palette pair.
@@ -311,7 +312,7 @@
          return (T)(t == null ? this.defaultState : t);
      }
  
-@@ -150,13 +330,15 @@
+@@ -150,13 +331,15 @@
          this.lock();
          int i = buf.readByte();
  
@@ -330,7 +331,7 @@
          this.unlock();
      }
  
-@@ -165,7 +347,7 @@
+@@ -165,7 +348,7 @@
          this.lock();
          buf.writeByte(this.bits);
          this.palette.write(buf);
@@ -339,7 +340,7 @@
          this.unlock();
      }
  
-@@ -175,16 +357,17 @@
+@@ -175,16 +358,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -360,7 +361,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +375,12 @@
+@@ -192,12 +376,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -375,7 +376,7 @@
          }
          else
          {
-@@ -205,15 +388,17 @@
+@@ -205,15 +389,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -394,7 +395,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -221,7 +406,7 @@
+@@ -221,7 +407,7 @@
  
          for (int i = 0; i < 4096; ++i)
          {
@@ -403,7 +404,7 @@
          }
  
          NBTTagList nbttaglist = new NBTTagList();
-@@ -241,6 +426,6 @@
+@@ -241,6 +427,6 @@
  
      public int getSerializedSize()
      {

@@ -18,6 +18,7 @@ package ocd.concurrent.util;
  *     <li>using immutable data containers, so that we can replace a single reference to the container atomically</li>
  * </ul>
  *
+ *
  * While this approach uses more memory accesses, CPU instructions and an additional branch compared to the immutable data container, it saves one level of indirection.
  * That is because the data can be accessed directly without the indirection over the data container.
  * In many cases, memory latency is the primary bottleneck, so that the reduced indirection often outweighs the additional operations.
@@ -27,8 +28,20 @@ package ocd.concurrent.util;
  * If the data can be prefetched by the CPU, the cost of the indirection is hidden, so this approach will be less relevant in those cases.
  * As a rule of thumb, if the access of the composite data is one of the first operations on an object, this approach should be faster than an immutable data container.
  *
- * For performance reasons, this class only provides static helper methods rather than a Version object encapsulating the version-stamp.
- * Although the accesses to the version stamp don't count towards the dependency chain of the payload data, the overhead of such an object compared to a simple int could still be measurable.
+ *
+ * The payload data should be processed on the fly, rather than first fetching all data at once and process it afterwards.
+ * Otherwise, the processing might be delayed too much which nullifies the performance gains from the avoided indirection.
+ * Also, because CPU registers are limited, this might cause more data to be moved around, which causes additional overhead.
+ *
+ * Ideally, the code should be written as if there was no concurrency (eg. like it would be written using immutable data containers).
+ * Afterwards the two reads to the version field should be inserted just before the first access of the payload data and just after the last access.
+ * The rest of the processing (after fetching the last payload data) can then continue after the {@link #isConsistent(int, int) consistency check}.
+ *
+ * However, one should keep in mind that the data encountered within on-the-fly processing might be inconsistent.
+ * Consistency is only known after the call to {@link #isConsistent(int, int)}.
+ * One should be especially cautious to make sure that inconsistencies won't cause problems.
+ * That may limit the applicability of this approach.
+ *
  *
  * Writers must use {@link #startModification(int)} to adapt the version number before modifying the data and {@link #endModification(int)} after the modifications.
  * They should use CAS operations to update the version number or make sure that they have exclusive write access.
@@ -40,6 +53,14 @@ package ocd.concurrent.util;
  *     <li>placing a loadFence after reading the version number for the first time and one before reading it for the second time. (Respectively storeFences for writers)</li>
  *     <li>or making all the payload data and the version field <code>volatile</code></li>
  * </ul>
+ *
+ *
+ * For performance reasons, this class only provides static helper methods rather than a Version object encapsulating the version-stamp.
+ * Although the accesses to the version stamp don't count towards the dependency chain of the payload data, the overhead of such an object compared to a simple int could still be measurable.
+ *
+ * Using ints for the version-stamps can cause aliasing problems, meaning that two versions-stamps are considered {@link #isConsistent(int, int) consistent} although they are not.
+ * However, that requires a multiple of 2^31 modifications while the payload data is read.
+ * In practice, this should be less probable than some critical hardware failure, so this should be a fair compromise.
  *
  *
  * This class is mainly intended for documenting the approach. The implementation of the helper methods is actually quite simple.
