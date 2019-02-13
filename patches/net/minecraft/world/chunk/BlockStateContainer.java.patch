@@ -106,7 +106,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,73 +138,190 @@
+@@ -74,73 +138,195 @@
  
      private void setBits(int bitsIn)
      {
@@ -308,11 +308,16 @@
 +    {
 +        // We are guaranteed exclusive write access. Hence there are no concurrent writers.
 +        // So, we don't need to fetch a consistent version of the data and don't need acquire-release semantics to make sure a new mapping is visible.
-+        T t = this.palette.get(this.storage.getPlain(index));
++        
++        // Do this operation in two steps.
++        // Writing this.palette.get(this.storage.getPlain(index)) in a single line would force the palette to be loaded before evaluating the id.
++        // Fetching it afterwards turns out to be slightly more efficient.
++        final int id = this.storage.getPlain(index);
++        final T t = this.palette.get(id);
          return (T)(t == null ? this.defaultState : t);
      }
  
-@@ -150,13 +331,15 @@
+@@ -150,13 +336,15 @@
          this.lock();
          int i = buf.readByte();
  
@@ -331,7 +336,7 @@
          this.unlock();
      }
  
-@@ -165,7 +348,7 @@
+@@ -165,7 +353,7 @@
          this.lock();
          buf.writeByte(this.bits);
          this.palette.write(buf);
@@ -340,7 +345,7 @@
          this.unlock();
      }
  
-@@ -175,16 +358,17 @@
+@@ -175,16 +363,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -361,7 +366,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +376,12 @@
+@@ -192,12 +381,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -376,7 +381,7 @@
          }
          else
          {
-@@ -205,15 +389,17 @@
+@@ -205,15 +394,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -395,7 +400,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -221,7 +407,7 @@
+@@ -221,7 +412,7 @@
  
          for (int i = 0; i < 4096; ++i)
          {
@@ -404,7 +409,7 @@
          }
  
          NBTTagList nbttaglist = new NBTTagList();
-@@ -241,6 +427,6 @@
+@@ -241,6 +432,6 @@
  
      public int getSerializedSize()
      {
