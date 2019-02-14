@@ -400,15 +400,6 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -221,7 +412,7 @@
- 
-         for (int i = 0; i < 4096; ++i)
-         {
--            aint[i] = blockstatepalettehashmap.idFor((T)this.get(i));
-+            aint[i] = blockstatepalettehashmap.idFor((T)this.getOpaque(i));
-         }
- 
-         NBTTagList nbttaglist = new NBTTagList();
 @@ -241,6 +432,6 @@
  
      public int getSerializedSize()
