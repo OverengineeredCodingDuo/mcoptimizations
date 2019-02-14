@@ -151,7 +151,7 @@ public interface AtomicObjectArray<T>
     {
         switch (memoryOrder)
         {
-        case MemoryOrder.NONE:
+        case MemoryOrder.PLAIN:
         case MemoryOrder.OPAQUE:
             return this.getOpaque(index);
         case MemoryOrder.ACQ_REL:
@@ -203,7 +203,7 @@ public interface AtomicObjectArray<T>
     {
         switch (memoryOrder)
         {
-        case MemoryOrder.NONE:
+        case MemoryOrder.PLAIN:
         case MemoryOrder.OPAQUE:
             this.setOpaque(index, value);
             return;
@@ -225,7 +225,7 @@ public interface AtomicObjectArray<T>
     {
         switch (memoryOrder)
         {
-        case MemoryOrder.NONE:
+        case MemoryOrder.PLAIN:
         case MemoryOrder.OPAQUE:
             this.setOpaqueExclusive(index, value);
             return;

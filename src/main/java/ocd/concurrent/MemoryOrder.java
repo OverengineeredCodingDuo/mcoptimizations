@@ -36,7 +36,7 @@ public class MemoryOrder
      * Does not give any memory consistency guarantee other than atomicity.
      * In particular, this does not guarantee monotonic reads.
      */
-    public static final int NONE = 0;
+    public static final int PLAIN = 0;
     /**
      * In the following, the meaning of "location" depends on the underlying atomic data structure.
      * Usually, it is clear what "location" means, eg. for an array it describes a value corresponding to a fixed index, for a map it describes a mapping for a fixed key.

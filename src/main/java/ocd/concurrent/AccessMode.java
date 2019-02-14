@@ -57,11 +57,11 @@ public class AccessMode
          */
         public static final int OPAQUE = 1; // getAccessMode(MemoryOrder.OPAQUE, ShareMode.SHARED)
         /**
-         * This mode has the memory consistency guarantees specified by {@link MemoryOrder#NONE}.
+         * This mode has the memory consistency guarantees specified by {@link MemoryOrder#PLAIN}.
          * This requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_WRITE}.
          * Operations with this access mode behave like ordinary non-atomic operations.
          */
-        public static final int PLAIN = 4; // getAccessMode(MemoryOrder.NONE, ShareMode.EXCLUSIVE_WRITE)
+        public static final int PLAIN = 4; // getAccessMode(MemoryOrder.PLAIN, ShareMode.EXCLUSIVE_WRITE)
 
         /**
          * Returns a read access mode that {@link MemoryOrder#implies(int, int) implies} both the provided memory order and the memory order guaranteed by the specified access mode
@@ -86,8 +86,8 @@ public class AccessMode
          */
         public static int getAccessMode(final int memoryOrder, final int shareMode)
         {
-            final int memoryOrder_ = MemoryOrder.enforce(memoryOrder, shareMode == ShareMode.SHARED ? MemoryOrder.OPAQUE : MemoryOrder.NONE);
-            final int shareMode_ = ShareMode.restrict(shareMode, memoryOrder == MemoryOrder.NONE ? ShareMode.EXCLUSIVE_WRITE : ShareMode.SHARED);
+            final int memoryOrder_ = MemoryOrder.enforce(memoryOrder, shareMode == ShareMode.SHARED ? MemoryOrder.OPAQUE : MemoryOrder.PLAIN);
+            final int shareMode_ = ShareMode.restrict(shareMode, memoryOrder == MemoryOrder.PLAIN ? ShareMode.EXCLUSIVE_WRITE : ShareMode.SHARED);
 
             return AccessMode.getAccessMode(memoryOrder_, shareMode_);
         }
@@ -129,11 +129,11 @@ public class AccessMode
          */
         public static final int OPAQUE_EXCLUSIVE = 5; // getAccessMode(MemoryOrder.OPAQUE, ShareMode.EXCLUSIVE_WRITE)
         /**
-         * This mode has the memory consistency guarantees specified by {@link MemoryOrder#NONE}.
+         * This mode has the memory consistency guarantees specified by {@link MemoryOrder#PLAIN}.
          * This requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_READ_WRITE}.
          * Operations with this access mode behave like ordinary non-atomic operations.
          */
-        public static final int PLAIN = 8; // getAccessMode(MemoryOrder.NONE, ShareMode.EXCLUSIVE_READ_WRITE)
+        public static final int PLAIN = 8; // getAccessMode(MemoryOrder.PLAIN, ShareMode.EXCLUSIVE_READ_WRITE)
 
         /**
          * Returns a write access mode that {@link MemoryOrder#implies(int, int) implies} both the provided memory order and the memory order guaranteed by the specified access mode
@@ -158,8 +158,8 @@ public class AccessMode
          */
         public static int getAccessMode(final int memoryOrder, final int shareMode)
         {
-            final int memoryOrder_ = MemoryOrder.enforce(memoryOrder, shareMode == ShareMode.EXCLUSIVE_READ_WRITE ? MemoryOrder.NONE : MemoryOrder.OPAQUE);
-            final int shareMode_ = ShareMode.restrict(shareMode, memoryOrder == MemoryOrder.NONE ? ShareMode.EXCLUSIVE_READ_WRITE : ShareMode.EXCLUSIVE_WRITE);
+            final int memoryOrder_ = MemoryOrder.enforce(memoryOrder, shareMode == ShareMode.EXCLUSIVE_READ_WRITE ? MemoryOrder.PLAIN : MemoryOrder.OPAQUE);
+            final int shareMode_ = ShareMode.restrict(shareMode, memoryOrder == MemoryOrder.PLAIN ? ShareMode.EXCLUSIVE_READ_WRITE : ShareMode.EXCLUSIVE_WRITE);
 
             return AccessMode.getAccessMode(memoryOrder_, shareMode_);
         }
