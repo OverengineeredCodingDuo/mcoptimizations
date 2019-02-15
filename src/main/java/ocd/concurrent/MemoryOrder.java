@@ -35,6 +35,10 @@ public class MemoryOrder
     /**
      * Does not give any memory consistency guarantee other than atomicity.
      * In particular, this does not guarantee monotonic reads.
+     *
+     * Operations with this memory ordering behave like ordinary non-volatile variable accesses.
+     * This means that they are well-behaved when used under exclusive access.
+     * Using shared access, one won't get any consistency guarantees.
      */
     public static final int PLAIN = 0;
     /**
