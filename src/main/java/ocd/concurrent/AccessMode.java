@@ -57,9 +57,11 @@ public class AccessMode
          */
         public static final int OPAQUE = 1; // getAccessMode(MemoryOrder.OPAQUE, ShareMode.SHARED)
         /**
-         * This mode has the memory consistency guarantees specified by {@link MemoryOrder#PLAIN}.
+         * This mode has the memory consistency guarantees specified by {@link MemoryOrder#PLAIN} (effectively {@link MemoryOrder#ACQ_REL}).
          * This requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_WRITE}.
          * Operations with this access mode behave like ordinary non-atomic operations.
+         *
+         * While {@link MemoryOrder#PLAIN} does not give any consistency guarantees by itself, the external synchronization requirements imposed by {@link ShareMode#EXCLUSIVE_WRITE} do give effectively {@link MemoryOrder#ACQ_REL} semantics for these operations.
          */
         public static final int PLAIN = 4; // getAccessMode(MemoryOrder.PLAIN, ShareMode.EXCLUSIVE_WRITE)
 
@@ -129,9 +131,11 @@ public class AccessMode
          */
         public static final int OPAQUE_EXCLUSIVE = 5; // getAccessMode(MemoryOrder.OPAQUE, ShareMode.EXCLUSIVE_WRITE)
         /**
-         * This mode has the memory consistency guarantees specified by {@link MemoryOrder#PLAIN}.
+         * This mode has the memory consistency guarantees specified by {@link MemoryOrder#PLAIN} (effectively {@link MemoryOrder#ACQ_REL}).
          * This requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_READ_WRITE}.
          * Operations with this access mode behave like ordinary non-atomic operations.
+         *
+         * While {@link MemoryOrder#PLAIN} does not give any consistency guarantees by itself, the external synchronization requirements imposed by {@link ShareMode#EXCLUSIVE_READ_WRITE} do give effectively {@link MemoryOrder#ACQ_REL} semantics for these operations.
          */
         public static final int PLAIN = 8; // getAccessMode(MemoryOrder.PLAIN, ShareMode.EXCLUSIVE_READ_WRITE)
 
