@@ -27,7 +27,7 @@
  {
      private final IBlockStatePalette<T> field_205521_b;
      private final IBlockStatePaletteResizer<T> field_205522_c = (p_205517_0_, p_205517_1_) ->
-@@ -28,11 +46,54 @@
+@@ -28,11 +46,55 @@
      private final Function<NBTTagCompound, T> deserializer;
      private final Function<T, NBTTagCompound> serializer;
      private final T defaultState;
@@ -57,7 +57,7 @@
 +     * Also, volatile semantics are needed to guarantee volatile semantics for getVolatile() and setVolatile().
 +     * Furthermore, acquire-release semantics of volatile make sure that the contents of the storage array and palette are properly initialized when accessing them.
 +     */
-+    private volatile int version = ocd.concurrent.util.VersionUtils.initVersion();
++    private volatile long version = ocd.concurrent.util.VersionUtils.initVersion();
 +    protected volatile ocd.concurrent.util.AtomicBitArray storage;
 +    private volatile IBlockStatePalette<T> palette;
 +    /*
@@ -75,16 +75,17 @@
 +    private void swapData()
 +    {
 +        // We have exclusive write access, so we don't need CAS operations.
-+        this.version = ocd.concurrent.util.VersionUtils.startModification(this.version);
++        final long prevVersion = this.version;
++        this.version = ocd.concurrent.util.VersionUtils.startModification(prevVersion);
 +        this.palette = this.tmpPalette;
 +        this.storage = this.tmpStorage;
-+        this.version = ocd.concurrent.util.VersionUtils.endModification(this.version);
++        this.version = ocd.concurrent.util.VersionUtils.endModification(prevVersion);
 +    }
 +
      private void lock()
      {
          if (this.lock.isLocked() && !this.lock.isHeldByCurrentThread())
-@@ -49,11 +110,13 @@
+@@ -49,11 +111,13 @@
          else
          {
              this.lock.lock();
@@ -98,7 +99,7 @@
          this.lock.unlock();
      }
  
-@@ -65,6 +128,7 @@
+@@ -65,6 +129,7 @@
          this.serializer = p_i48961_4_;
          this.defaultState = p_i48961_5_;
          this.setBits(4);
@@ -106,7 +107,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,73 +138,195 @@
+@@ -74,73 +139,195 @@
  
      private void setBits(int bitsIn)
      {
@@ -283,7 +284,7 @@
 +        // We use VersionUtils to fetch a consistent pair of storage and palette.
 +        while (true)
 +        {
-+            final int version = this.version;
++            final long version = this.version;
 +
 +            // Both the palette and bitArray read values atomically.
 +            // storage.getVolatile() has volatile memory consistency guarantees.
@@ -317,7 +318,7 @@
          return (T)(t == null ? this.defaultState : t);
      }
  
-@@ -150,13 +336,15 @@
+@@ -150,13 +337,15 @@
          this.lock();
          int i = buf.readByte();
  
@@ -336,7 +337,7 @@
          this.unlock();
      }
  
-@@ -165,7 +353,7 @@
+@@ -165,7 +354,7 @@
          this.lock();
          buf.writeByte(this.bits);
          this.palette.write(buf);
@@ -345,7 +346,7 @@
          this.unlock();
      }
  
-@@ -175,16 +363,17 @@
+@@ -175,16 +364,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -366,7 +367,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +381,12 @@
+@@ -192,12 +382,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -381,7 +382,7 @@
          }
          else
          {
-@@ -205,15 +394,17 @@
+@@ -205,15 +395,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -400,7 +401,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -241,6 +432,6 @@
+@@ -241,6 +433,6 @@
  
      public int getSerializedSize()
      {

@@ -35,17 +35,17 @@ package ocd.concurrent.util;
  *
  * Ideally, the code should be written as if there was no concurrency (eg. like it would be written using immutable data containers).
  * Afterwards the two reads to the version field should be inserted just before the first access of the payload data and just after the last access.
- * The rest of the processing (after fetching the last payload data) can then continue after the {@link #isConsistent(int, int) consistency check}.
+ * The rest of the processing (after fetching the last payload data) can then continue after the {@link #isConsistent(long, long) consistency check}.
  *
  * However, one should keep in mind that the data encountered within on-the-fly processing might be inconsistent.
- * Consistency is only known after the call to {@link #isConsistent(int, int)}.
+ * Consistency is only known after the call to {@link #isConsistent(long, long)}.
  * One should be especially cautious to make sure that inconsistencies won't cause problems.
  * That may limit the applicability of this approach.
  *
  *
- * Writers must use {@link #startModification(int)} to adapt the version number before modifying the data and {@link #endModification(int)} after the modifications.
+ * Writers must use {@link #startModification(long)} to adapt the version number before modifying the data and {@link #endModification(long)} after the modifications.
  * They should use CAS operations to update the version number or make sure that they have exclusive write access.
- * Also, they should check if {@link #isModificationInProgess(int) a modification is in progress} by another thread before starting a modification (unless we have exclusive write access).
+ * Also, they should check if {@link #isModificationInProgress(long) a modification is in progress} by another thread before starting a modification (unless we have exclusive write access).
  *
  * Both readers and writers must make sure that the two accesses to the version number are visible before, respectively after, the accecss to the payload data.
  * For example, this can be achieved by
@@ -56,11 +56,11 @@ package ocd.concurrent.util;
  *
  *
  * For performance reasons, this class only provides static helper methods rather than a Version object encapsulating the version-stamp.
- * Although the accesses to the version stamp don't count towards the dependency chain of the payload data, the overhead of such an object compared to a simple int could still be measurable.
+ * Although the accesses to the version stamp don't count towards the dependency chain of the payload data, the overhead of such an object compared to a simple long could still be measurable.
  *
- * Using ints for the version-stamps can cause aliasing problems, meaning that two versions-stamps are considered {@link #isConsistent(int, int) consistent} although they are not.
- * However, that requires a multiple of 2^31 modifications while the payload data is read.
- * In practice, this should be less probable than some critical hardware failure, so this should be a fair compromise.
+ * Using longs for the version-stamps can cause aliasing problems, meaning that two versions-stamps are considered {@link #isConsistent(long, long) consistent} although they are not.
+ * However, that requires exactly a multiple of 2^63 modifications while the payload data is read.
+ * It would take several 100 years to increase the version-stamp that often, even when updating it every CPU cycle. Hence this should not be a problem in practice.
  *
  *
  * This class is mainly intended for documenting the approach. The implementation of the helper methods is actually quite simple.
@@ -75,9 +75,9 @@ public class VersionUtils
      */
 
     /**
-     * Initializes a new version number that indicates that {@link #isModificationInProgess(int) no modification is in progress}.
+     * Initializes a new version number that indicates that {@link #isModificationInProgress(long) no modification is in progress}.
      */
-    public static int initVersion()
+    public static long initVersion()
     {
         return 0;
     }
@@ -85,33 +85,35 @@ public class VersionUtils
     /**
      * Returns whether the specified version number indicates that a modification is in progress.
      */
-    public static boolean isModificationInProgess(final int version)
+    public static boolean isModificationInProgress(final long version)
     {
         return (version & 1) != 0;
     }
 
     /**
-     * Updates the specified version number to indicate that {@link #isModificationInProgess(int) a modification is in progress}.
+     * Updates the specified version number to indicate that {@link #isModificationInProgress(long) a modification is in progress}.
      * Writers must use this to modify the version number before they start modifying the payload data.
      * They should use CAS operations to update the version field or make sure that they have exclusive write access.
-     * The specified version must indicate that {@link #isModificationInProgess(int) no modification is in progress}.
+     * The specified version must indicate that {@link #isModificationInProgress(long) no modification is in progress}.
      *
      * Writers need to make sure that the update to the version number is visible before modifications to the payload data, eg. by making the version field <code>volatile</code>.
      */
-    public static int startModification(final int version)
+    public static long startModification(final long version)
     {
         return version + 1;
     }
 
     /**
      * Returns an updated version number that is distinguishable from the previous iterations of the specified version number.
-     * The returned version indicates that {@link #isModificationInProgess(int) no modification is in progress}.
+     * The returned version indicates that {@link #isModificationInProgress(long) no modification is in progress}.
      *
      * Writers need to make sure that modifications to the payload data are visible before the update to the version number, eg. by making the payload data <code>volatile</code>.
+     *
+     * @param prevVersion The version number before {@link #startModification(long) starting the modification}
      */
-    public static int endModification(final int version)
+    public static long endModification(final long prevVersion)
     {
-        return version + 1;
+        return prevVersion + 2;
     }
 
     /**
@@ -120,7 +122,7 @@ public class VersionUtils
      * Readers need to make sure that the access to <code>versionStart</code> is visible before the access to the payload data and that this is visible before the access to <code>versionEnd</code>.
      * This can be achieved, for example, by making the payload data and the version field <code>volatile</code>.
      */
-    public static boolean isConsistent(final int versionStart, final int versionEnd)
+    public static boolean isConsistent(final long versionStart, final long versionEnd)
     {
         // !isModificationInProgress(versionStart) && versionStart == versionEnd
         return versionStart == (versionEnd & -2);
