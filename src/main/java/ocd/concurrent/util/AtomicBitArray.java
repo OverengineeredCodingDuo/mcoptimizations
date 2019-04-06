@@ -241,7 +241,7 @@ public class AtomicBitArray implements AtomicIntArray
      * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ocd.concurrent.ShareMode#EXCLUSIVE_READ_WRITE} from the caller.
      */
     @OnlyIn(Dist.CLIENT)
-    public synchronized void read(PacketBuffer buf)
+    public void read(PacketBuffer buf)
     {
         final BitArray bitArray = new BitArray(this.bitsPerEntry, this.arraySize);
         buf.readLongArray(bitArray.getBackingLongArray());
