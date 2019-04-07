@@ -7,6 +7,9 @@ package ocd.concurrent;
  * Callers need to make sure that the specified share mode is indeed guaranteed, otherwise the results are undefined.
  * They should aim for the strongest share mode that they can guarantee.
  *
+ * In practice, it is often the case that there is only a single writer at a time. Hence data containers should provide {@link #EXCLUSIVE_WRITE} access modes, since they can usually be implemented more efficiently.
+ * However, from an API point of view, {@link #SHARED} access mode should always be provided, even if it is just implemented using an exclusive <code>synchronized</code>.
+ *
  * For performance reasons, this uses static ints instead of enums.
  */
 public class ShareMode

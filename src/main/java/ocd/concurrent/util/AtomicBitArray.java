@@ -9,17 +9,18 @@ import net.minecraft.util.BitArray;
 import net.minecraft.util.math.MathHelper;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import ocd.concurrent.AccessMode;
+import ocd.concurrent.ShareMode;
 
 /**
  * Thread-safe version of {@link BitArray}.
  * This uses a different packing format than {@link BitArray} to make sure that each entry is contained inside a single long.
  * This allows accessing the entry atomically.
- * Convenience overloads are provided for the access modes defined in {@link ocd.concurrent.AccessMode}.
  *
- * Most memory orderings for AtomicLongArray are only implemented since Java 9.
- * Hence, most methods below actually fallback to stronger memory orderings.
+ * Operations have {@link ocd.concurrent.MemoryOrder#ACQ_REL} semantics, where "location" in the definition of access modes and memory orderings correspond to values at a fixed index.
+ * {@link ShareMode#SHARED} and {@link ShareMode#EXCLUSIVE_WRITE} access modes are provided.
  */
-public class AtomicBitArray implements AtomicIntArray
+public class AtomicBitArray
 {
     private final AtomicLongArray data;
     protected final int bitsPerEntry;
@@ -70,32 +71,12 @@ public class AtomicBitArray implements AtomicIntArray
         return (index % entriesPerLong) * bitsPerEntry;
     }
 
-    private interface CASOperation
-    {
-        boolean compareAndSet(AtomicLongArray data, int index, long expectedValue, long newValue);
-    }
-
-    // Placeholder for Java 9, which actually provides weaker access modes.
-    @Override
-    public void setOpaque(int index, int value)
-    {
-        this.setShared(index, value, AtomicLongArray::weakCompareAndSet);
-    }
-
-    // Placeholder for Java 9, which actually provides weaker access modes.
-    @Override
-    public void setRelease(int index, int value)
-    {
-        this.setShared(index, value, AtomicLongArray::compareAndSet);
-    }
-
-    @Override
-    public void setVolatile(int index, int value)
-    {
-        this.setShared(index, value, AtomicLongArray::compareAndSet);
-    }
-
-    private void setShared(final int index, final int value, final CASOperation operation)
+    /**
+     * Atomically sets the given value at the specified index.
+     * This has the memory consistency guarantees defined by {@link AccessMode.Write#RELEASE}.
+     * This does not require any exclusivity guarantees from the caller.
+     */
+    public void set(int index, int value)
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
         Validate.inclusiveBetween(0, this.maxEntryValue, value);
@@ -108,41 +89,14 @@ public class AtomicBitArray implements AtomicIntArray
         do
         {
             oldVal = this.data.get(i);
-        } while (!operation.compareAndSet(this.data, i, oldVal, (oldVal & ~(this.maxEntryValue << shift)) | (((long) value) << shift)));
+        } while (!this.data.compareAndSet(i, oldVal, (oldVal & ~(this.maxEntryValue << shift)) | (((long) value) << shift)));
     }
 
-    private interface SetOperation
-    {
-        void set(AtomicLongArray data, int index, long val);
-    }
-
-    // Placeholder for Java 9, which actually provides weaker access modes.
-    @Override
-    public void setPlain(int index, int value)
-    {
-        this.setExclusive(index, value, AtomicLongArray::lazySet);
-    }
-
-    // Placeholder for Java 9, which actually provides weaker access modes.
-    @Override
-    public void setOpaqueExclusive(int index, int value)
-    {
-        this.setExclusive(index, value, AtomicLongArray::lazySet);
-    }
-
-    @Override
-    public void setReleaseExclusive(int index, int value)
-    {
-        this.setExclusive(index, value, AtomicLongArray::lazySet);
-    }
-
-    @Override
-    public void setVolatileExclusive(int index, int value)
-    {
-        this.setExclusive(index, value, AtomicLongArray::set);
-    }
-
-    private void setExclusive(final int index, final int value, final SetOperation operation)
+    /**
+     * Atomically sets the given value at the specified index.
+     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.Write#RELEASE_EXCLUSIVE}.
+     */
+    public void setExclusive(int index, int value)
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
         Validate.inclusiveBetween(0, this.maxEntryValue, value);
@@ -152,39 +106,30 @@ public class AtomicBitArray implements AtomicIntArray
 
         // We are guaranteed exclusive write access. Hence we can use ordinary writes instead of CAS.
         long oldVal = this.data.get(i);
-        operation.set(this.data, i, (oldVal & ~(this.maxEntryValue << shift)) | (((long) value) << shift));
+        this.data.lazySet(i, (oldVal & ~(this.maxEntryValue << shift)) | (((long) value) << shift));
     }
 
-    // Placeholder for Java 9, which actually provides weaker access modes.
-    private interface GetOperation
+    /**
+     * Atomically sets the given value at the specified index.
+     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
+     */
+    public void set(int index, int value, int shareMode)
     {
-        long get(AtomicLongArray data, int index);
+        if (ShareMode.allows(shareMode, ShareMode.EXCLUSIVE_WRITE))
+            this.setExclusive(index, value);
+        else
+            this.set(index, value);
     }
 
-    // Placeholder for Java 9, which actually provides weaker access modes.
-    @Override
-    public int getPlain(int index)
-    {
-        return this.get(index, AtomicLongArray::get);
-    }
-
-    // Placeholder for Java 9, which actually provides weaker access modes.
-    @Override
-    public int getOpaque(int index)
-    {
-        return this.get(index, AtomicLongArray::get);
-    }
-
-    @Override
-    public int getVolatile(int index)
-    {
-        return this.get(index, AtomicLongArray::get);
-    }
-
-    private int get(final int index, final GetOperation operation)
+    /**
+     * Atomically gets the value at the specified index.
+     * This has the memory consistency guarantees defined by {@link AccessMode.Read#ACQUIRE}.
+     * This does not require any exclusivity guarantees from the caller.
+     */
+    public int get(int index)
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
-        return (int) ((operation.get(this.data, this.getIndex(index)) >>> this.getShift(index)) & this.maxEntryValue);
+        return (int) ((this.data.get(this.getIndex(index)) >>> this.getShift(index)) & this.maxEntryValue);
     }
 
     /**
@@ -196,7 +141,7 @@ public class AtomicBitArray implements AtomicIntArray
         final BitArray bitArray = new BitArray(this.bitsPerEntry, this.arraySize);
 
         for (int i = 0; i < this.arraySize; ++i)
-            bitArray.setAt(i, this.getOpaque(i));
+            bitArray.setAt(i, this.get(i));
 
         return bitArray.getBackingLongArray();
     }
@@ -216,7 +161,7 @@ public class AtomicBitArray implements AtomicIntArray
 
     /**
      * Copies the data from the specified bit array.
-     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ocd.concurrent.ShareMode#EXCLUSIVE_READ_WRITE} from the caller.
+     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_WRITE} from the caller.
      */
     public void read(final BitArray bitArray)
     {
@@ -224,12 +169,12 @@ public class AtomicBitArray implements AtomicIntArray
             throw new IllegalArgumentException(String.format("Trying to read array of size %s into array of incompatible size %s", bitArray.size(), this.arraySize));
 
         for (int i = 0; i < this.arraySize; ++i)
-            this.setPlain(i, bitArray.getAt(i));
+            this.setExclusive(i, bitArray.getAt(i));
     }
 
     /**
      * Copies the data in the format specified by {@link BitArray}.
-     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ocd.concurrent.ShareMode#EXCLUSIVE_READ_WRITE} from the caller.
+     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_WRITE} from the caller.
      */
     public void read(final long[] data)
     {
@@ -238,7 +183,7 @@ public class AtomicBitArray implements AtomicIntArray
 
     /**
      * Copies the data in the format specified by {@link BitArray}.
-     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ocd.concurrent.ShareMode#EXCLUSIVE_READ_WRITE} from the caller.
+     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_WRITE} from the caller.
      */
     @OnlyIn(Dist.CLIENT)
     public void read(PacketBuffer buf)

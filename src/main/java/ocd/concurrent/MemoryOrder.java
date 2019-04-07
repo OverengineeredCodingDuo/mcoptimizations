@@ -28,6 +28,12 @@ package ocd.concurrent;
  * Callers should aim for the weakest possible memory ordering.
  * These memory orders correspond to the modes provided with VarHandle, introduced in Java 9.
  *
+ * When only a single memory ordering is implemented, {@link #ACQ_REL} should be used.
+ * <ul>
+ *     <li>While {@link #OPAQUE} is sufficient in many cases, there are situations where {@link #ACQ_REL} is needed. Since this fallback is usually quite cheap/free, this should be a fair compromise.</li>
+ *     <li>{@link #VOLATILE} semantics are not really ever needed in practice for data containers. Since this does usually incur a performance hit, this should not be chosen as the only implemented memory ordering.</li>
+ * </ul>
+ *
  * For performance reasons, this uses static ints instead of enums.
  */
 public class MemoryOrder
