@@ -94,6 +94,22 @@ public class MemoryOrder
     }
 
     /**
+     * Returns an {@link AccessMode.ReadModifyWrite access mode} used for read-modify-write operations that guarantees the specified memory order.
+     */
+    public static int getRMWAccessMode(final int memoryOrder)
+    {
+        return AccessMode.ReadModifyWrite.getAccessMode(memoryOrder, ShareMode.SHARED);
+    }
+
+    /**
+     * Returns an {@link AccessMode.ReadModifyWrite access mode} used for exclusive read-modify-write operations that guarantees the specified memory order.
+     */
+    public static int getExclusiveRMWAccessMode(final int memoryOrder)
+    {
+        return AccessMode.ReadModifyWrite.getAccessMode(memoryOrder, ShareMode.EXCLUSIVE_WRITE);
+    }
+
+    /**
      * Returns whether operations performed with <code>memoryOrder1</code> order also give the guarantees of <code>memoryOrder2</code>.
      */
     public static boolean implies(final int memoryOrder1, final int memoryOrder2)

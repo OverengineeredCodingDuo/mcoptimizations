@@ -106,7 +106,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,89 +140,246 @@
+@@ -74,89 +140,346 @@
  
      private void setBits(int bitsIn)
      {
@@ -170,6 +170,123 @@
      }
  
 +    /**
++     * Queries the mapping for the specified state.
++     * If none exists yet, a new one is created. This might resize this.palette.
++     *
++     * The caller must not hold a write lock, ie. a lock for this.sharedLock.readLock()/writeLock().
++     *
++     * This method acquires a shared write lock (ie. a lock for this.sharedLock.readLock()) that is transferred to the caller upon returning from this method.
++     * The returned mapping corresponds to the reference of this.palette directly after returning from this method (which is well-defined because the caller then holds a shared write lock, so this.palette doesn't change).
++     */
++    private int idFor(final T state)
++    {
++        // Acquire a shared write lock so that the returned id is consistent with this.palette, ie. the reference to this.palette does not change.
++        this.sharedLock.readLock().lock();
++
++        // Only query an already existing mapping. Don't create a new mapping here, as writing to the palette isn't thread-safe.
++        int id = this.palette.getId(state);
++
++        // The mapping doesn't exist yet.
++        if (id == -1)
++        {
++            // Acquire exclusive access, so we can write to the palette.
++            // This waits until no other thread is writing, in case we need to resize and change the palette, bitArray pair.
++
++            // We need to acquire the exclusive lock here, even if the palette would support thread-safe writing.
++            // This is because we need to acquire the lock inside onResize() and upgrading from a shared lock to an exclusive lock isn't possible.
++            this.sharedLock.readLock().unlock();
++            this.sharedLock.writeLock().lock();
++
++            // We can now write to the palette.
++            id = this.palette.idFor(state);
++
++            // Reacquire the shared lock before releasing the exclusive lock.
++            // This makes sure that id corresponds to this.palette when returning from the method, ie. this.palette does not change inbetween.
++            this.sharedLock.readLock().lock();
++            this.sharedLock.writeLock().unlock();
++        }
++
++        return id;
++    }
++
++    /**
++     * Atomically sets the given state at the specified position and returns the previous state.
++     * This has the memory consistency guarantees of {@link ocd.concurrent.AccessMode.ReadModifyWrite#ACQ_REL}.
++     * This does not require any exclusivity guarantees from the caller.
++     */
++    public T getAndSet(int x, int y, int z, T state)
++    {
++        return this.getAndSet(getIndex(x, y, z), state);
++    }
++
++    /**
++     * Atomically sets the given state at the specified position and returns the previous state.
++     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link ocd.concurrent.AccessMode.ReadModifyWrite#ACQ_REL_EXCLUSIVE}.
++     */
++    public T getAndSetExclusive(int x, int y, int z, T state)
++    {
++        return this.getAndSetExclusive(getIndex(x, y, z), state);
++    }
++
++    /**
++     * Atomically sets the given state at the specified position and returns the previous state.
++     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
++     */
++    public T getAndSet(int x, int y, int z, T state, int shareMode)
++    {
++        return ocd.concurrent.ShareMode.allows(shareMode, ocd.concurrent.ShareMode.EXCLUSIVE_WRITE) ? this.getAndSetExclusive(x, y, z, state) : this.getAndSet(x, y, z, state);
++    }
++
++    /**
++     * Atomically sets the given state at the specified index and returns the previous state.
++     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.ReadModifyWrite#ACQ_REL}.
++     * This does not require any exclusivity guarantees from the caller.
++     */
++    protected T getAndSet(int index, T state)
++    {
++        final int id = this.idFor(state);
++        // We now hold a lock for this.sharedLock.readLock().
++        // This makes sure that this.palette and this.data stay consistent during the whole operation.
++
++        // storage.getAndSet() has acquire-release memory consistency guarantees. This gives the desired acquire-release consistency guarantees for the whole operation.
++        // Also, release semantics make sure that a new mapping is written before the corresponding id is written to the bitArray.
++        final int prevId = this.storage.getAndSet(index, id);
++
++        // Fetch the palette before releasing the lock. Otherwise it might be changed before we lookup the previous state.
++        final IBlockStatePalette<T> palette  = this.palette;
++        this.sharedLock.readLock().unlock();
++
++        final T t = palette.get(prevId);
++        return t == null ? this.defaultState : t;
++    }
++
++    /**
++     * Atomically sets the given state at the specified index and returns the previous state.
++     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link ocd.concurrent.AccessMode.ReadModifyWrite#ACQ_REL_EXCLUSIVE}.
++     */
++    protected T getAndSetExclusive(int index, T state)
++    {
++        // We can elide locks because we are guaranteed exclusive write access.
++        int id = this.palette.idFor(state);
++
++        // storage.getAndSetExclusive() has release memory consistency guarantees. This gives the desired release consistency guarantees for the whole operation.
++        // Also, release semantics make sure that a new mapping is written before the corresponding id is written to the bitArray.
++        final int prevId = this.storage.getAndSetExclusive(index, id);
++
++        final T t = this.palette.get(prevId);
++        return t == null ? this.defaultState : t;
++    }
++
++    /**
++     * Atomically sets the given state at the specified index and returns the previous state.
++     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
++     */
++    protected T getAndSet(int index, T state, int shareMode)
++    {
++        return ocd.concurrent.ShareMode.allows(shareMode, ocd.concurrent.ShareMode.EXCLUSIVE_WRITE) ? this.getAndSetExclusive(index, state) : this.getAndSet(index, state);
++    }
++
++    /**
 +     * Atomically sets the given state at the specified position.
 +     * This has the memory consistency guarantees of {@link ocd.concurrent.AccessMode.Write#RELEASE}.
 +     * This does not require any exclusivity guarantees from the caller.
@@ -193,8 +310,8 @@
 +    }
 +
 +    /**
-+     * Atomically sets the given value at the specified position.
-+     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Write#RELEASE} and exclusivity requirements as defined by the specified <code>shareMode</code>.
++     * Atomically sets the given state at the specified position.
++     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
 +     */
 +    public void set(int x, int y, int z, T state, int shareMode)
 +    {
@@ -205,56 +322,40 @@
 +    }
 +
 +    /**
-+     * Atomically sets the given value at the specified index.
++     * Atomically sets the given state at the specified index.
 +     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Write#RELEASE}.
 +     * This does not require any exclusivity guarantees from the caller.
 +     */
      protected void set(int index, T state)
      {
-+        // Make sure the storage-palette pair does not get replaced while we write to it.
-+        this.sharedLock.readLock().lock();
-+        // Only query an already existing mapping. Don't create a new mapping here, as writing to the palette isn't thread-safe.
-+        int i = this.palette.getId(state);
+-        int i = this.palette.idFor(state);
+-        this.storage.setAt(index, i);
++        final int id = this.idFor(state);
++        // We now hold a lock for this.sharedLock.readLock().
++        // This makes sure that this.palette and this.data stay consistent during the whole operation.
 +
-+        // The mapping doesn't exist yet.
-+        if (i == -1)
-+        {
-+            // Acquire exclusive access, so we can write to the palette.
-+            // This waits until no other thread is writing, in case we need to resize and change the container.
-+            // We need to acquire the exclusive lock here, even if the palette would support thread-safe writing.
-+            // This is because we need to acquire the lock inside onResize() and upgrading from a shared lock to an exclusive lock isn't possible there.
-+            // Just releasing the shared lock and not acquiring the exclusive lock is also not possible since in this case this.data might be replaced while we are writing to the palette.
-+            this.sharedLock.readLock().unlock();
-+            this.sharedLock.writeLock().lock();
-+
-+            // We can now write to the palette.
-+            i = this.palette.idFor(state);
-+
-+            this.sharedLock.readLock().lock();
-+            this.sharedLock.writeLock().unlock();
-+        }
 +        // storage.set() has release memory consistency guarantees. This gives the desired release consistency guarantees for the whole operation.
-+        // Also, acquire-release semantics make sure that a new mapping is written before the corresponding id is written to the bitArray.
-+        // Re-fetch this.storage because it might have been changed due to resizing inside idFor().
-+        this.storage.set(index, i);
++        // Also, release semantics make sure that a new mapping is written before the corresponding id is written to the bitArray.
++        this.storage.set(index, id);
 +        this.sharedLock.readLock().unlock();
-+    }
-+
+     }
+ 
 +    /**
-+     * Atomically sets the given value at the specified index.
++     * Atomically sets the given state at the specified index.
 +     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link ocd.concurrent.AccessMode.Write#RELEASE_EXCLUSIVE}.
 +     */
 +    protected void setExclusive(int index, T state)
 +    {
 +        // We can elide locks because we are guaranteed exclusive write access.
-         int i = this.palette.idFor(state);
--        this.storage.setAt(index, i);
-+        // Acquire-release semantics make sure that a new mapping is written before the corresponding id is written to the bitArray.
-+        this.storage.setExclusive(index, i);
-     }
- 
++        int id = this.palette.idFor(state);
++
++        // storage.setExclusive() has release memory consistency guarantees. This gives the desired release consistency guarantees for the whole operation.
++        // Also, release semantics make sure that a new mapping is written before the corresponding id is written to the bitArray.
++        this.storage.setExclusive(index, id);
++    }
++
 +    /**
-+     * Atomically sets the given value at the specified index.
++     * Atomically sets the given state at the specified index.
 +     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
 +     */
 +    protected void set(int index, T state, int shareMode)
@@ -276,7 +377,7 @@
      }
  
 +    /**
-+     * Atomically gets the value at the specified position.
++     * Atomically gets the state at the specified position.
 +     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link ocd.concurrent.AccessMode.Read#PLAIN}.
 +     */
 +    public T getPlain(int x, int y, int z)
@@ -285,7 +386,7 @@
 +    }
 +
 +    /**
-+     * Atomically gets the value at the specified position.
++     * Atomically gets the state at the specified position.
 +     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
 +     */
 +    public T get(int x, int y, int z, int shareMode)
@@ -325,7 +426,7 @@
      }
  
 +    /**
-+     * Atomically gets the value at the specified index.
++     * Atomically gets the state at the specified index.
 +     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link ocd.concurrent.AccessMode.Read#PLAIN}.
 +     */
 +    protected T getPlain(int index)
@@ -342,7 +443,7 @@
 +    }
 +
 +    /**
-+     * Atomically gets the value at the specified index.
++     * Atomically gets the state at the specified index.
 +     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
 +     */
 +    protected T get(int index, int shareMode)
@@ -371,7 +472,7 @@
          this.unlock();
      }
  
-@@ -165,7 +388,7 @@
+@@ -165,7 +488,7 @@
          this.lock();
          buf.writeByte(this.bits);
          this.palette.write(buf);
@@ -380,7 +481,7 @@
          this.unlock();
      }
  
-@@ -175,16 +398,17 @@
+@@ -175,16 +498,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -401,7 +502,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +416,12 @@
+@@ -192,12 +516,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -416,7 +517,7 @@
          }
          else
          {
-@@ -205,15 +429,17 @@
+@@ -205,15 +529,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -435,7 +536,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -241,6 +467,6 @@
+@@ -241,6 +567,6 @@
  
      public int getSerializedSize()
      {

@@ -72,11 +72,11 @@ public class AtomicBitArray
     }
 
     /**
-     * Atomically sets the given value at the specified index.
-     * This has the memory consistency guarantees defined by {@link AccessMode.Write#RELEASE}.
+     * Atomically sets the given value at the specified index and returns the previous value.
+     * This has the memory consistency guarantees defined by {@link AccessMode.ReadModifyWrite#ACQ_REL}.
      * This does not require any exclusivity guarantees from the caller.
      */
-    public void set(int index, int value)
+    public int getAndSet(int index, int value)
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
         Validate.inclusiveBetween(0, this.maxEntryValue, value);
@@ -85,18 +85,20 @@ public class AtomicBitArray
         final int shift = this.getShift(index);
 
         // Use CAS to set the entry atomically.
-        long oldVal;
-        do
+        while (true)
         {
-            oldVal = this.data.get(i);
-        } while (!this.data.compareAndSet(i, oldVal, (oldVal & ~(this.maxEntryValue << shift)) | (((long) value) << shift)));
+            final long oldVal = this.data.get(i);
+
+            if (this.data.compareAndSet(i, oldVal, (oldVal & ~(this.maxEntryValue << shift)) | (((long) value) << shift)))
+                return (int) ((oldVal >>> shift) & this.maxEntryValue);
+        }
     }
 
     /**
-     * Atomically sets the given value at the specified index.
-     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.Write#RELEASE_EXCLUSIVE}.
+     * Atomically sets the given value at the specified index and returns the previous value.
+     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.ReadModifyWrite#ACQ_REL_EXCLUSIVE}.
      */
-    public void setExclusive(int index, int value)
+    public int getAndSetExclusive(int index, int value)
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
         Validate.inclusiveBetween(0, this.maxEntryValue, value);
@@ -107,6 +109,36 @@ public class AtomicBitArray
         // We are guaranteed exclusive write access. Hence we can use ordinary writes instead of CAS.
         long oldVal = this.data.get(i);
         this.data.lazySet(i, (oldVal & ~(this.maxEntryValue << shift)) | (((long) value) << shift));
+
+        return (int) ((oldVal >>> shift) & this.maxEntryValue);
+    }
+
+    /**
+     * Atomically sets the given value at the specified index and returns the previous value.
+     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
+     */
+    public int getAndSet(int index, int value, int shareMode)
+    {
+        return ShareMode.allows(shareMode, ShareMode.EXCLUSIVE_WRITE) ? this.getAndSetExclusive(index, value) : this.getAndSet(index, value);
+    }
+
+    /**
+     * Atomically sets the given value at the specified index.
+     * This has the memory consistency guarantees defined by {@link AccessMode.Write#RELEASE}.
+     * This does not require any exclusivity guarantees from the caller.
+     */
+    public void set(int index, int value)
+    {
+        this.getAndSet(index, value);
+    }
+
+    /**
+     * Atomically sets the given value at the specified index.
+     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.Write#RELEASE_EXCLUSIVE}.
+     */
+    public void setExclusive(int index, int value)
+    {
+        this.getAndSetExclusive(index, value);
     }
 
     /**
