@@ -106,7 +106,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,89 +140,346 @@
+@@ -74,89 +140,356 @@
  
      private void setBits(int bitsIn)
      {
@@ -241,6 +241,11 @@
 +     * Atomically sets the given state at the specified index and returns the previous state.
 +     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.ReadModifyWrite#ACQ_REL}.
 +     * This does not require any exclusivity guarantees from the caller.
++     *
++     * The shared lock is used mainly for demonstrational purposes.
++     * In practise, it might be more efficient to use a <code>synchronized</code> version of {@link #getAndSetExclusive(int, Object)} instead.
++     * That is because the payload is quite small, so time sharing shouldn't make much of a difference compared to an exclusive lock.
++     * Furthermore, <code>synchronized</code> is subject to JIT optimizations, in contrast to the shared lock.
 +     */
 +    protected T getAndSet(int index, T state)
 +    {
@@ -325,6 +330,11 @@
 +     * Atomically sets the given state at the specified index.
 +     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Write#RELEASE}.
 +     * This does not require any exclusivity guarantees from the caller.
++     *
++     * The shared lock is used mainly for demonstrational purposes.
++     * In practise, it might be more efficient to use a <code>synchronized</code> version of {@link #setExclusive(int, Object)} instead.
++     * That is because the payload is quite small, so time sharing shouldn't make much of a difference compared to an exclusive lock.
++     * Furthermore, <code>synchronized</code> is subject to JIT optimizations, in contrast to the shared lock.
 +     */
      protected void set(int index, T state)
      {
@@ -472,7 +482,7 @@
          this.unlock();
      }
  
-@@ -165,7 +488,7 @@
+@@ -165,7 +498,7 @@
          this.lock();
          buf.writeByte(this.bits);
          this.palette.write(buf);
@@ -481,7 +491,7 @@
          this.unlock();
      }
  
-@@ -175,16 +498,17 @@
+@@ -175,16 +508,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -502,7 +512,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +516,12 @@
+@@ -192,12 +526,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -517,7 +527,7 @@
          }
          else
          {
-@@ -205,15 +529,17 @@
+@@ -205,15 +539,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -536,7 +546,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -241,6 +567,6 @@
+@@ -241,6 +577,6 @@
  
      public int getSerializedSize()
      {
