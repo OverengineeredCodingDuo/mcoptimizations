@@ -30,9 +30,16 @@ package ocd.concurrent;
  *
  * When only a single memory ordering is implemented, {@link #ACQ_REL} should be used.
  * <ul>
- *     <li>While {@link #OPAQUE} is sufficient in many cases, there are situations where {@link #ACQ_REL} is needed. Since this fallback is usually quite cheap/free, this should be a fair compromise.</li>
+ *     <li>While {@link #OPAQUE} is sufficient in some cases, there are situations where {@link #ACQ_REL} is needed. Since this fallback is usually quite cheap/free, this should be a fair compromise.</li>
+ *     <li>A common example where {@link #OPAQUE} is not sufficient, but {@link #ACQ_REL} is, is given by data containers for non-scalar objects.
+ *     There it is desirable that not only the reference to the object is read atomically, but also the data contained in the object is up-to-date, ie. at least as recent as at the time of writing the object to the data container.
+ *     This is achieved with {@link #ACQ_REL} memory ordering, but not with {@link #OPAQUE} memory ordering.</li>
  *     <li>{@link #VOLATILE} semantics are not really ever needed in practice for data containers. Since this does usually incur a performance hit, this should not be chosen as the only implemented memory ordering.</li>
  * </ul>
+ *
+ * A concurrent reader should not assume any memory consistency for unrelated data.
+ * A task that requires any sort of global memory consistency should be synchronized by other means. Otherwise chances are high that there are errors even with sequential consistency.
+ * The only guarantee that should be used is atomicity, ie. reads always return meaningful values.
  *
  * For performance reasons, this uses static ints instead of enums.
  */
@@ -58,8 +65,8 @@ public class MemoryOrder
     public static final int OPAQUE = 1;
     /**
      * This mode gives {@link #OPAQUE} consistency guarantees.
-     * Additionally, reading operations synchronize with the corresponding write operation that produced the observed value.
-     * That means that any writing operations (irrespective of their memory ordering) prior to this write are visible to all reading operations (irrespective of their memory ordering) after this read.
+     * Additionally, reading operations synchronize with the corresponding write operation that produced the observed value (but not with write operations that produced earlier values in the coherent modification history).
+     * That means that all operations of any kind prior to a release write happen before all operations of any kind subsequent to the corresponding acquire read observing the written value.
      */
     public static final int ACQ_REL = 2;
     /**

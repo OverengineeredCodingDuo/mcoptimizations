@@ -10,7 +10,7 @@ package ocd.concurrent.util;
  *     <li>Fetch the payload data</li>
  *     <li>Fetch the version-stamp again and compare it with the initial stamp</li>
  *     <li>If they match (and they indicate that no modification is in progress), we have successfully fetched a consistent version of the payload data</li>
- *     <li>Otherwise, try again</li>
+ *     <li>Otherwise, try again or use some other fallback method like immutable data containers</li>
  * </ul>
  * There are other approaches to achieve this, like
  * <ul>

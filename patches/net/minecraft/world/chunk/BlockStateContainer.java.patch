@@ -1,6 +1,6 @@
 --- a/net/minecraft/world/chunk/BlockStateContainer.java
 +++ b/net/minecraft/world/chunk/BlockStateContainer.java
-@@ -17,6 +17,25 @@
+@@ -17,6 +17,21 @@
  import net.minecraftforge.api.distmarker.Dist;
  import net.minecraftforge.api.distmarker.OnlyIn;
  
@@ -18,15 +18,11 @@
 + *
 + * Operations have {@link ocd.concurrent.MemoryOrder#ACQ_REL} semantics, where "location" in the definition of access modes and memory orderings correspond to values at a fixed position.
 + * {@link ocd.concurrent.ShareMode#SHARED} and {@link ocd.concurrent.ShareMode#EXCLUSIVE_WRITE} access modes are provided.
-+ *
-+ * A concurrent reader should not assume ANY memory consistency.
-+ * A task that requires any sort of memory consistency should be synchronized by other means. Otherwise chances are high that there are errors even with sequential consistency.
-+ * The only guarantee that should be used is atomicity, ie. reads always return meaningful values.
 + */
  public class BlockStateContainer<T> implements IBlockStatePaletteResizer<T>
  {
      private final IBlockStatePalette<T> field_205521_b;
-@@ -28,11 +47,55 @@
+@@ -28,11 +43,54 @@
      private final Function<NBTTagCompound, T> deserializer;
      private final Function<T, NBTTagCompound> serializer;
      private final T defaultState;
@@ -34,7 +30,7 @@
 -    private IBlockStatePalette<T> palette;
      private int bits;
      private final ReentrantLock lock = new ReentrantLock();
-+    /*
++    /**
 +     * A shared write lock used by threads writing to this container.
 +     * Despite its name, ReadWriteLock has (almost) the exact semantics we need.
 +     * "Readers" correspond to writers that can work concurrently.
@@ -49,17 +45,16 @@
 +     * Ideally, one should write a proper SharedWriteLock, similar to ReentrantReadWriteLock.
 +     */
 +    private final java.util.concurrent.locks.ReadWriteLock sharedLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
-+    /*
-+     * The approach described in VersionUtils is used to guard a consistent pair of the storage array and palette.
++    /**
++     * The approach described in {@link ocd.concurrent.util.VersionUtils} is used to guard a consistent pair of the storage array and palette.
 +     * This is needed because the palette gets reshuffled upon resizing, so we need to make sure that a reader always consults a consistent storage-palette pair.
-+     * Volatile is used to meet the requirements of VersionUtils.
-+     * Also, volatile semantics are needed to guarantee volatile semantics for getVolatile() and setVolatile().
++     * Volatile is used to meet the requirements of {@link ocd.concurrent.util.VersionUtils}.
 +     * Furthermore, acquire-release semantics of volatile make sure that the contents of the storage array and palette are properly initialized when accessing them.
 +     */
 +    private volatile long version = ocd.concurrent.util.VersionUtils.initVersion();
 +    protected volatile ocd.concurrent.util.AtomicBitArray storage;
 +    private volatile IBlockStatePalette<T> palette;
-+    /*
++    /**
 +     * New version of the data created during resizing.
 +     * We first copy the data to new versions of the storage and palette and afterwards swap the references.
 +     * Because we have EXCLUSIVE_READ_WRITE access to those, we can use plain access modes.
@@ -84,7 +79,7 @@
      private void lock()
      {
          if (this.lock.isLocked() && !this.lock.isHeldByCurrentThread())
-@@ -49,11 +112,13 @@
+@@ -49,11 +107,13 @@
          else
          {
              this.lock.lock();
@@ -98,7 +93,7 @@
          this.lock.unlock();
      }
  
-@@ -65,6 +130,7 @@
+@@ -65,6 +125,7 @@
          this.serializer = p_i48961_4_;
          this.defaultState = p_i48961_5_;
          this.setBits(4);
@@ -106,7 +101,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,89 +140,356 @@
+@@ -74,89 +135,354 @@
  
      private void setBits(int bitsIn)
      {
@@ -299,10 +294,8 @@
      public void set(int x, int y, int z, T state)
      {
 -        this.lock();
-+        //this.lock();
          this.set(getIndex(x, y, z), state);
 -        this.unlock();
-+        //this.unlock();
      }
  
 +    /**
@@ -482,7 +475,7 @@
          this.unlock();
      }
  
-@@ -165,7 +498,7 @@
+@@ -165,7 +491,7 @@
          this.lock();
          buf.writeByte(this.bits);
          this.palette.write(buf);
@@ -491,7 +484,7 @@
          this.unlock();
      }
  
-@@ -175,16 +508,17 @@
+@@ -175,16 +501,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -512,7 +505,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +526,12 @@
+@@ -192,12 +519,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -527,7 +520,7 @@
          }
          else
          {
-@@ -205,15 +539,17 @@
+@@ -205,15 +532,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -546,7 +539,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -241,6 +577,6 @@
+@@ -241,6 +570,6 @@
  
      public int getSerializedSize()
      {
