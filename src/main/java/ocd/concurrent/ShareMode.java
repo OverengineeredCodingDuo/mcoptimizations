@@ -9,6 +9,7 @@ package ocd.concurrent;
  *
  * In practice, it is often the case that there is only a single writer at a time. Hence data containers should provide {@link #EXCLUSIVE_WRITE} access modes, since they can usually be implemented more efficiently.
  * However, from an API point of view, {@link #SHARED} access mode should always be provided, even if it is just implemented using an exclusive <code>synchronized</code>.
+ * Even if exclusive access does not lead to more efficient implementations, it can still make sense from an API point of view to provide {@link #EXCLUSIVE_WRITE} and {@link #EXCLUSIVE_READ_WRITE} access modes.
  *
  * For performance reasons, this uses static ints instead of enums.
  */

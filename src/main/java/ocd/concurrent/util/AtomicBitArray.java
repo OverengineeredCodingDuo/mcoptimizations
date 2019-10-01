@@ -18,7 +18,7 @@ import ocd.concurrent.ShareMode;
  * This allows accessing the entry atomically.
  *
  * Operations have {@link ocd.concurrent.MemoryOrder#ACQ_REL} semantics, where "location" in the definition of access modes and memory orderings correspond to values at a fixed index.
- * {@link ShareMode#SHARED} and {@link ShareMode#EXCLUSIVE_WRITE} access modes are provided.
+ * {@link ocd.concurrent.ShareMode#SHARED}, {@link ocd.concurrent.ShareMode#EXCLUSIVE_WRITE} and {@link ocd.concurrent.ShareMode#EXCLUSIVE_READ_WRITE} access modes are provided.
  */
 public class AtomicBitArray
 {
@@ -115,6 +115,15 @@ public class AtomicBitArray
 
     /**
      * Atomically sets the given value at the specified index and returns the previous value.
+     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.ReadModifyWrite#PLAIN}.
+     */
+    public int getAndSetPlain(int index, int value)
+    {
+        return this.getAndSetExclusive(index, value);
+    }
+
+    /**
+     * Atomically sets the given value at the specified index and returns the previous value.
      * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
      */
     public int getAndSet(int index, int value, int shareMode)
@@ -143,6 +152,15 @@ public class AtomicBitArray
 
     /**
      * Atomically sets the given value at the specified index.
+     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.Write#PLAIN}.
+     */
+    public void setPlain(int index, int value)
+    {
+        this.setExclusive(index, value);
+    }
+
+    /**
+     * Atomically sets the given value at the specified index.
      * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
      */
     public void set(int index, int value, int shareMode)
@@ -162,6 +180,24 @@ public class AtomicBitArray
     {
         Validate.inclusiveBetween(0, this.arraySize - 1, index);
         return (int) ((this.data.get(this.getIndex(index)) >>> this.getShift(index)) & this.maxEntryValue);
+    }
+
+    /**
+     * Atomically gets the value at the specified index.
+     * This has the memory consistency guarantees and exclusivity requirements as defined by {@link AccessMode.Read#PLAIN}.
+     */
+    public int getPlain(int index)
+    {
+        return this.get(index);
+    }
+
+    /**
+     * Atomically gets the value at the specified index.
+     * This has the memory consistency guarantees defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL} and exclusivity requirements as defined by the specified <code>shareMode</code>.
+     */
+    public int get(int index, int shareMode)
+    {
+        return ShareMode.allows(shareMode, ShareMode.EXCLUSIVE_WRITE) ? this.getPlain(index) : this.get(index);
     }
 
     /**
@@ -193,7 +229,7 @@ public class AtomicBitArray
 
     /**
      * Copies the data from the specified bit array.
-     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_WRITE} from the caller.
+     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_READ_WRITE} from the caller.
      */
     public void read(final BitArray bitArray)
     {
@@ -201,12 +237,12 @@ public class AtomicBitArray
             throw new IllegalArgumentException(String.format("Trying to read array of size %s into array of incompatible size %s", bitArray.size(), this.arraySize));
 
         for (int i = 0; i < this.arraySize; ++i)
-            this.setExclusive(i, bitArray.getAt(i));
+            this.setPlain(i, bitArray.getAt(i));
     }
 
     /**
      * Copies the data in the format specified by {@link BitArray}.
-     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_WRITE} from the caller.
+     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_READ_WRITE} from the caller.
      */
     public void read(final long[] data)
     {
@@ -215,7 +251,7 @@ public class AtomicBitArray
 
     /**
      * Copies the data in the format specified by {@link BitArray}.
-     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_WRITE} from the caller.
+     * This method is NOT thread-safe and requires exclusivity guarantees as specified by {@link ShareMode#EXCLUSIVE_READ_WRITE} from the caller.
      */
     @OnlyIn(Dist.CLIENT)
     public void read(PacketBuffer buf)
