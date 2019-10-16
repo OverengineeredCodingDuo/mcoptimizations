@@ -29,25 +29,24 @@ package ocd.concurrent.util;
  * As a rule of thumb, if the access of the composite data is one of the first operations on an object, this approach should be faster than an immutable data container.
  *
  *
- * The payload data should be processed on the fly, rather than first fetching all data at once and process it afterwards.
- * Otherwise, the processing might be delayed too much which nullifies the performance gains from the avoided indirection.
- * Also, because CPU registers are limited, this might cause more data to be moved around, which causes additional overhead.
+ * For large amounts of payload data, the data should be processed on the fly, rather than first fetching all data at once and processing it afterwards. This can save some unnecessary copy instructions.
+ * However, on-the-fly processing might increase the risk of encountering a concurrent modification which forces to fetch the data again.
+ * For large amounts of data, other approaches like immutable data containers might be more suitable, as the additional overhead becomes small compared to the large amount of data, but fetching an immutable container always succeeds and is not susceptible to concurrent modifications.
  *
- * Ideally, the code should be written as if there was no concurrency (eg. like it would be written using immutable data containers).
- * Afterwards the two reads to the version field should be inserted just before the first access of the payload data and just after the last access.
- * The rest of the processing (after fetching the last payload data) can then continue after the {@link #isConsistent(long, long) consistency check}.
+ * For small amounts of payload data, on the other hand, it is recommended to first fetch all the data using the above version-stamp approach and only process it afterwards.
+ * This minimizes the chances of encountering concurrent modifications and hence the number of retries needed.
+ * Out-of-order execution will then start processing the data on the fly on CPU level.
  *
- * However, one should keep in mind that the data encountered within on-the-fly processing might be inconsistent.
+ * Furthermore, on-the-fly processing is susceptible to the problem that data encountered during processing might be inconsistent.
  * Consistency is only known after the call to {@link #isConsistent(long, long)}.
- * One should be especially cautious to make sure that inconsistencies won't cause problems.
- * That may limit the applicability of this approach.
+ * Processing the data only after the consistency check avoids this issue.
  *
  *
  * Writers must use {@link #startModification(long)} to adapt the version number before modifying the data and {@link #endModification(long)} after the modifications.
  * They should use CAS operations to update the version number or make sure that they have exclusive write access.
  * Also, they should check if {@link #isModificationInProgress(long) a modification is in progress} by another thread before starting a modification (unless we have exclusive write access).
  *
- * Both readers and writers must make sure that the two accesses to the version number are visible before, respectively after, the accecss to the payload data.
+ * Both readers and writers must make sure that the two accesses to the version number are visible before, respectively after, the access to the payload data.
  * For example, this can be achieved by
  * <ul>
  *     <li>placing a loadFence after reading the version number for the first time and one before reading it for the second time. (Respectively storeFences for writers)</li>
