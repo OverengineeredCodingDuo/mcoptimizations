@@ -22,7 +22,7 @@
  public class BlockStateContainer<T> implements IBlockStatePaletteResizer<T>
  {
      private final IBlockStatePalette<T> field_205521_b;
-@@ -28,11 +43,54 @@
+@@ -28,11 +43,52 @@
      private final Function<NBTTagCompound, T> deserializer;
      private final Function<T, NBTTagCompound> serializer;
      private final T defaultState;
@@ -46,12 +46,11 @@
 +     */
 +    private final java.util.concurrent.locks.ReadWriteLock sharedLock = new java.util.concurrent.locks.ReentrantReadWriteLock();
 +    /**
-+     * The approach described in {@link ocd.concurrent.util.VersionUtils} is used to guard a consistent pair of the storage array and palette.
++     * The approach described in {@link ocd.concurrent.util.VersionGuard} is used to guard a consistent pair of the storage array and palette.
 +     * This is needed because the palette gets reshuffled upon resizing, so we need to make sure that a reader always consults a consistent storage-palette pair.
-+     * Volatile is used to meet the requirements of {@link ocd.concurrent.util.VersionUtils}.
-+     * Furthermore, acquire-release semantics of volatile make sure that the contents of the storage array and palette are properly initialized when accessing them.
 +     */
-+    private volatile long version = ocd.concurrent.util.VersionUtils.initVersion();
++    private final ocd.concurrent.util.VersionGuard versionGuard = new ocd.concurrent.util.VersionGuard();
++    // Both fields are volatile as required by VersionGuard.
 +    protected volatile ocd.concurrent.util.AtomicBitArray storage;
 +    private volatile IBlockStatePalette<T> palette;
 +    /**
@@ -63,23 +62,22 @@
 +    private IBlockStatePalette<T> tmpPalette;
  
 +    /**
-+     * Swaps the storage-palette pair using VersionUtils.
++     * Swaps the storage-palette pair using {@link ocd.concurrent.util.VersionGuard}.
 +     * This is called after the new container is filled.
 +     */
 +    private void swapData()
 +    {
-+        // We have exclusive write access, so we don't need CAS operations.
-+        final long prevVersion = this.version;
-+        this.version = ocd.concurrent.util.VersionUtils.startModification(prevVersion);
++        // We have exclusive write access.
++        this.versionGuard.startModificationExclusive();
 +        this.palette = this.tmpPalette;
 +        this.storage = this.tmpStorage;
-+        this.version = ocd.concurrent.util.VersionUtils.endModification(prevVersion);
++        this.versionGuard.endModification();
 +    }
 +
      private void lock()
      {
          if (this.lock.isLocked() && !this.lock.isHeldByCurrentThread())
-@@ -49,11 +107,13 @@
+@@ -49,11 +105,13 @@
          else
          {
              this.lock.lock();
@@ -93,7 +91,7 @@
          this.lock.unlock();
      }
  
-@@ -65,6 +125,7 @@
+@@ -65,6 +123,7 @@
          this.serializer = p_i48961_4_;
          this.defaultState = p_i48961_5_;
          this.setBits(4);
@@ -101,7 +99,7 @@
      }
  
      private static int getIndex(int x, int y, int z)
-@@ -74,89 +135,409 @@
+@@ -74,89 +133,409 @@
  
      private void setBits(int bitsIn)
      {
@@ -393,7 +391,7 @@
 +     */
 +    protected void setPlain(int index, T state)
 +    {
-+        // Here we could eliminate the use of VersionUtils inside swapData() called through onResize(), as there are no concurrent readers.
++        // Here we could eliminate the use of VersionGuard inside swapData() called through onResize(), as there are no concurrent readers.
 +        // However, the performance gain would be negligible and definitely not worth the effort.
 +        this.setExclusive(index, state, ocd.concurrent.ShareMode.EXCLUSIVE_READ_WRITE);
 +    }
@@ -472,18 +470,18 @@
      {
 -        T t = this.palette.get(this.storage.getAt(index));
 -        return (T)(t == null ? this.defaultState : t);
-+        // We use VersionUtils to fetch a consistent pair of storage and palette.
++        // We use VersionGuard to fetch a consistent pair of storage and palette.
 +        while (true)
 +        {
-+            final long version = this.version;
++            final ocd.concurrent.util.VersionGuard.VersionStamp versionStamp = this.versionGuard.getVersion();
 +
-+            // First fetch all the data, as suggested by VersionUtils.
++            // First fetch all the data, as suggested by VersionGuard.
 +
 +            final ocd.concurrent.util.AtomicBitArray storage = this.storage;
 +            final IBlockStatePalette<T> palette = this.palette;
 +
-+            // Check for consistency directly after fetching all the data, as suggested by VersionUtils.
-+            if (ocd.concurrent.util.VersionUtils.isConsistent(version, this.version))
++            // Check for consistency directly after fetching all the data, as suggested by VersionGuard.
++            if (versionStamp.isConsistent())
 +            {
 +                // We have fetched a consistent storage-palette pair.
 +
@@ -530,7 +528,7 @@
          this.unlock();
      }
  
-@@ -165,7 +546,7 @@
+@@ -165,7 +544,7 @@
          this.lock();
          buf.writeByte(this.bits);
          this.palette.write(buf);
@@ -539,7 +537,7 @@
          this.unlock();
      }
  
-@@ -175,16 +556,17 @@
+@@ -175,16 +554,17 @@
          NBTTagList nbttaglist = nbt.getList(paletteKey, 10);
          int i = Math.max(4, MathHelper.log2DeBruijn(nbttaglist.size()));
  
@@ -560,7 +558,7 @@
          {
              IBlockStatePalette<T> iblockstatepalette = new BlockStatePaletteHashMap<T>(this.registry, i, this.field_205522_c, this.deserializer, this.serializer);
              iblockstatepalette.read(nbttaglist);
-@@ -192,12 +574,12 @@
+@@ -192,12 +572,12 @@
  
              for (int k = 0; k < 4096; ++k)
              {
@@ -575,7 +573,7 @@
          }
          else
          {
-@@ -205,15 +587,17 @@
+@@ -205,15 +585,17 @@
  
              for (int l = 0; l < 4096; ++l)
              {
@@ -594,7 +592,7 @@
          this.lock();
          BlockStatePaletteHashMap<T> blockstatepalettehashmap = new BlockStatePaletteHashMap<T>(this.registry, this.bits, this.field_205522_c, this.deserializer, this.serializer);
          blockstatepalettehashmap.idFor(this.defaultState);
-@@ -241,6 +625,6 @@
+@@ -241,6 +623,6 @@
  
      public int getSerializedSize()
      {
