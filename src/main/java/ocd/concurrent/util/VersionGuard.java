@@ -1,6 +1,7 @@
 package ocd.concurrent.util;
 
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * This class provides a mechanism for implementing atomic composite objects.
@@ -14,6 +15,15 @@ import java.util.concurrent.atomic.AtomicLong;
  *     <li>If they match (and they indicate that no modification is in progress), we have successfully fetched a consistent version of the payload data</li>
  *     <li>Otherwise, try again or use some other fallback method like immutable data containers</li>
  * </ul>
+ * Alternatively, the helper method {@link #fetchData(Supplier)} can be used.
+ *
+ * Writers need to
+ * <ul>
+ *     <li>Update the version-stamp to indicate that a modification is in progress using {@link #startModification()} (respectively {@link #startModificationExclusive()})</li>
+ *     <li>Modify the payload data</li>
+ *     <li>Update the version-stamp to end the modification using {@link #endModification()}</li>
+ * </ul>
+ * Alternatively, the helper method {@link #modifyData(Runnable)} (respectively {@link #modifyDataExclusive(Runnable)}) can be used.
  *
  * The payload data must be accessed through a single VersionGuard.
  * Read and write operations to the payload data as a whole have memory consistency guarantees as defined by {@link ocd.concurrent.MemoryOrder#ACQ_REL}.
@@ -106,9 +116,9 @@ public class VersionGuard
 
     /**
      * Updates the version number to indicate that {@link #isModificationInProgress() a modification is in progress} and obtains exclusive write access to the payload data.
-     * Writers must use this to modify the version number before they start modifying the payload data.
+     * Writers must use this to modify the version number before they start modifying the payload data (or use the helper method {@link #modifyData(Runnable)}).
      *
-     * This has the memory consistency guarantees as defined by {@link ocd.concurrent.AccessMode.Read#ACQUIRE}, ie. it synchronizes with the corresponding {@link #endModification()}.
+     * This has the memory consistency guarantees as defined by {@link ocd.concurrent.AccessMode.Read#ACQUIRE}, ie. it synchronizes with the corresponding {@link #endModification()} or {@link #modifyData(Runnable)} which produced the current version number.
      *
      * Writers need to make sure that the update to the version number is visible before modifications to the payload data, eg. by making the payload data <code>volatile</code>.
      * <b>Note:</b> In Java 9+ this requirement can be eliminated by using a memory fence provided by {@link java.lang.invoke.VarHandle}.
@@ -132,11 +142,11 @@ public class VersionGuard
 
     /**
      * Updates the version number to indicate that {@link #isModificationInProgress() a modification is in progress}.
-     * Writers must use this to modify the version number before they start modifying the payload data.
+     * Writers must use this to modify the version number before they start modifying the payload data (or use the helper method {@link #modifyDataExclusive(Runnable)}).
      *
-     * This has the memory consistency guarantees as defined by {@link ocd.concurrent.AccessMode.Read#PLAIN}, ie. it effectively synchronizes with the corresponding {@link #endModification()}.
+     * This has the memory consistency guarantees as defined by {@link ocd.concurrent.AccessMode.Read#PLAIN}, ie. it effectively synchronizes with the corresponding {@link #endModification()} or {@link #modifyData(Runnable)} which produced the current version number.
      *
-     * Writers must have exclusive access to the payload data and this VersionGuard, with the requirements specified by {@link ocd.concurrent.ShareMode#EXCLUSIVE_WRITE}
+     * Writers must have exclusive write access to the payload data and this VersionGuard, with the requirements specified by {@link ocd.concurrent.ShareMode#EXCLUSIVE_WRITE}.
      * There must be no modification currently {@link #isModificationInProgress() in progress}.
      *
      * Writers need to make sure that the update to the version number is visible before modifications to the payload data, eg. by making the payload data <code>volatile</code>.
@@ -150,9 +160,9 @@ public class VersionGuard
 
     /**
      * Updates the version number to indicate that {@link #isModificationInProgress() no modification is in progress} such that it is {@link VersionStamp#isConsistent() inconsistent} with previous version numbers.
-     * Writers must use this to modify the version number after modifying the payload data.
+     * Writers must use this to modify the version number after modifying the payload data (or use the helper method {@link #modifyData(Runnable)}).
      *
-     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Write#RELEASE} with respect to {@link #startModification()} and {@link #startModificationExclusive()}.
+     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Write#RELEASE} with respect to {@link #startModification()}, {@link #getVersion()}, {@link #fetchData(Supplier)}) and {@link #modifyData(Runnable)} (and the respective exclusive versions).
      */
     public void endModification()
     {
@@ -161,13 +171,73 @@ public class VersionGuard
 
     /**
      * Retrieves a {@link VersionStamp} corresponding to the current version number that can later be used to check if the version number is still {@link VersionStamp#isConsistent() consistent} with the current one.
-     * Readers must use this before reading the payload data.
+     * Readers must use this before reading the payload data (or use the helper method {@link #fetchData(Supplier)}).
      *
-     * This has the memory consistency guarantees as defined by {@link ocd.concurrent.AccessMode.Read#ACQUIRE}, ie. it synchronizes with the {@link #endModification()} corresponding to the current version number, IF the VersionStamp is later SUCCESSFULLY {@link VersionStamp#isConsistent() checked for consistency}.
+     * This has the memory consistency guarantees as defined by {@link ocd.concurrent.AccessMode.Read#ACQUIRE}, ie. it synchronizes with the {@link #endModification()} or {@link #modifyData(Runnable)} corresponding to the current version number, IF the VersionStamp is later SUCCESSFULLY {@link VersionStamp#isConsistent() checked for consistency}.
      */
     public VersionStamp getVersion()
     {
         return new VersionStamp();
+    }
+
+    /**
+     * Modifies the payload data using <code>modifier</code>.
+     *
+     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Write#RELEASE} with respect to {@link #startModification()}, {@link #getVersion()}, {@link #fetchData(Supplier)}) and {@link #modifyData(Runnable)} (and the respective exclusive versions).
+     * Additionally, entering <code>modifier</code> has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Read#ACQUIRE}, ie. it synchronizes with the corresponding {@link #endModification()} or {@link #modifyData(Runnable)} which produced the current state of the payload data.
+     *
+     * Exclusive write access to the payload data is granted to <code>modifier</code> during its execution.
+     *
+     * Writers need to make sure that the update to the version number prior to entering <code>modifier</code> is visible before modifications to the payload data, eg. by making the payload data <code>volatile</code>.
+     * <b>Note:</b> In Java 9+ this requirement can be eliminated by using memory fences provided by {@link java.lang.invoke.VarHandle}.
+     */
+    public void modifyData(final Runnable modifier)
+    {
+        this.startModification();
+        modifier.run();
+        this.endModification();
+    }
+
+    /**
+     * Modifies the payload data using <code>modifier</code>.
+     *
+     * This has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Write#RELEASE} with respect to {@link #startModification()}, {@link #getVersion()}, {@link #fetchData(Supplier)}) and {@link #modifyData(Runnable)} (and the respective exclusive versions).
+     * Additionally, entering <code>modifier</code> has the memory consistency guarantees defined by {@link ocd.concurrent.AccessMode.Read#PLAIN}, ie. it effectively synchronizes with the corresponding {@link #endModification()} or {@link #modifyData(Runnable)} which produced the current state of the payload data.
+     *
+     * Writers must have exclusive write access to the payload data and this VersionGuard, with the requirements specified by {@link ocd.concurrent.ShareMode#EXCLUSIVE_WRITE}.
+     * There must be no modification currently {@link #isModificationInProgress() in progress}.
+     *
+     * Writers need to make sure that the update to the version number prior to entering <code>modifier</code> is visible before modifications to the payload data, eg. by making the payload data <code>volatile</code>.
+     * <b>Note:</b> In Java 9+ this requirement can be eliminated by using memory fences provided by {@link java.lang.invoke.VarHandle}.
+     */
+    public void modifyDataExclusive(final Runnable modifier)
+    {
+        this.startModificationExclusive();
+        modifier.run();
+        this.endModification();
+    }
+
+    /**
+     * Fetches a consistent version of the payload data using <code>fetcher</code>.
+     *
+     * This has the memory consistency guarantees as defined by {@link ocd.concurrent.AccessMode.Read#ACQUIRE}, ie. it synchronizes with the {@link #endModification()} or {@link #modifyData(Runnable)} corresponding to the state of the fetched payload data.
+     *
+     * Readers need to make sure that the access to the payload data is visible before returning from <code>fetcher</code>, eg. by making the payload data <code>volatile</code>..
+     * <b>Note:</b> In Java 9+ this requirement can be eliminated by using memory fences provided by {@link java.lang.invoke.VarHandle}.
+     *
+     * This implementation simply retries to fetch the data until successfully fetching a consistent version.
+     * Since the version-stamp approach should only be used when modifications are rare, more sophisticated methods should not be needed, as concurrent writes should be sufficiently rare in practice.
+     */
+    public <T> T fetchData(final Supplier<T> fetcher)
+    {
+        while(true)
+        {
+            final VersionStamp versionStamp = this.getVersion();
+            final T ret = fetcher.get();
+
+            if (versionStamp.isConsistent())
+                return ret;
+        }
     }
 
     /**
@@ -187,7 +257,7 @@ public class VersionGuard
 
         /**
          * Checks if a consistent version of the payload data was fetched, ie. the version number has not changed since the creation of this VersionStamp and {@link #isModificationInProgress() no modification is in progress}.
-         * Readers must call this after fetching the payload data.
+         * Readers must call this after fetching the payload data (or use the helper method {@link #fetchData(Supplier)}).
          *
          * Readers need to make sure that the access to the payload data is visible before the call to this method, eg. by making the payload data <code>volatile</code>..
          * <b>Note:</b> In Java 9+ this requirement can be eliminated by using a memory fence provided by {@link java.lang.invoke.VarHandle}.
